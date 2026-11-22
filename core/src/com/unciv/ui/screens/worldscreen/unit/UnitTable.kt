@@ -1,5 +1,6 @@
 package com.unciv.ui.screens.worldscreen.unit
 
+import com.unciv.ui.components.input.gamepad.GamepadState
 import com.unciv.view.isPreparingAirSweep
 import com.badlogic.gdx.Gdx
 import com.badlogic.gdx.graphics.g2d.Batch
@@ -193,7 +194,9 @@ class UnitTable(val worldScreen: WorldScreen) : Table() {
 
         // With no units of our own (e.g. spectators, or a civ that lost all units), the summary
         // (idle/skipping units) is meaningless - hide the whole table instead of showing an empty round artifact.
-        isVisible = presenter != summaryPresenter || worldScreen.selectedGameView.civView.getUnits().isNotEmpty()
+        isVisible = presenter != summaryPresenter ||
+            // Controller layout: the idle-unit summary bubble is replaced by L1/R1 unit cycling
+            !GamepadState.controllerMode && worldScreen.selectedGameView.civView.getUnits().isNotEmpty()
 
         // more efficient to do this check once for both
         if (worldScreen.selectedGameView.civView.getUnits().any { it.isIdle() }) {

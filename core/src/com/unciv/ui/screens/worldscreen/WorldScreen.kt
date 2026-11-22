@@ -377,9 +377,15 @@ class WorldScreen(
         if (GamepadState.controllerMode) mapHolder.gamepadReticleTile ?: mapHolder.selectedTile
         else mapHolder.selectedTile
 
+    /** Controller layout: tile info in the bottom left corner (beside the unit/city info if one is selected) */
     private fun positionTileInfoTable() {
-        bottomTileInfoTable.x = stage.width - bottomTileInfoTable.width
-        bottomTileInfoTable.y = if (game.settings.showMinimap) minimapWrapper.height + 5f else 0f
+        if (GamepadState.controllerMode) {
+            bottomTileInfoTable.x = if (bottomUnitTable.isVisible) bottomUnitTable.width + 5f else 0f
+            bottomTileInfoTable.y = 0f
+        } else {
+            bottomTileInfoTable.x = stage.width - bottomTileInfoTable.width
+            bottomTileInfoTable.y = if (game.settings.showMinimap) minimapWrapper.height + 5f else 0f
+        }
     }
 
     /** Called by [WorldScreenGamepad] when the reticle moves onto another tile */
@@ -516,7 +522,9 @@ class WorldScreen(
         if (uiEnabled) tutorialTaskTable.update()
 
         val coveredNotificationsTop = stage.height - statusButtons.y
-        val coveredNotificationsBottom = (bottomTileInfoTable.height + bottomTileInfoTable.y)
+        val coveredNotificationsBottom = if (GamepadState.controllerMode)  // tile info lives bottom-left then
+            (if (game.settings.showMinimap) minimapWrapper.height else 0f)
+            else (bottomTileInfoTable.height + bottomTileInfoTable.y)
 //                (if (game.settings.showMinimap) minimapWrapper.height else 0f)
         notificationsScroll.update(viewingCiv.notifications, coveredNotificationsTop, coveredNotificationsBottom)
 
