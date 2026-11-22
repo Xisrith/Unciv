@@ -1,0 +1,113 @@
+# Nova preview build
+#
+# Builds a debug APK for testing on the Retroid Pocket Nova for every pull request inside this
+# fork (stacked PRs included) and comments the download link on the PR:
+#
+#   Per PR:        https://github.com/<owner>/Unciv/releases/download/nova-pr-<number>/Unciv-nova.apk
+#   Top of stack:  https://github.com/<owner>/Unciv/releases/download/nova-preview/Unciv-nova.apk
+#
+# "Top of stack" = an open PR that no other open PR is based on. With several independent tops,
+# the most recently built one wins nova-preview.
+#
+# Can also be run by hand from the Actions tab (builds the selected branch into nova-preview).
+
+name: Nova preview build
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [ opened, synchronize, reopened ]
+
+permissions:
+  contents: write        # create/update the releases holding the APKs
+  pull-requests: write   # comment the download link on the PR
+
+concurrency:
+  # One build per PR at a time; different PRs of a stack build in parallel
+  group: nova-preview-build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    # Fork-only: never run on upstream, and only for PRs opened inside this fork
+    if: >-
+      github.repository != 'yairm210/Unciv' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    name: Build and publish debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Build the branch head itself, not GitHub's temporary merge commit
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: 21
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build debug APK
+        run: ./gradlew :android:assembleDebug
+
+      - name: Rename APK
+        run: |
+          APK=$(find android/build/outputs/apk/debug -name "*.apk" | head -1)
+          cp "$APK" Unciv-nova.apk
+          ls -lh Unciv-nova.apk
+
+      - name: Keep APK as a workflow artifact (backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Unciv-nova-${{ github.event.pull_request.head.sha || github.sha }}
+          path: Unciv-nova.apk
+          retention-days: 14
+
+      - name: Publish releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          SHA=$(git rev-parse HEAD)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          BUILT="$(date -u '+%Y-%m-%d %H:%M UTC')"
+
+          publish() { # tag, title
+            local URL="https://github.com/${REPO}/releases/download/$1/Unciv-nova.apk"
+            # Recreate each time so the tag always points at the newest build
+            gh release delete "$1" --repo "$REPO" --yes --cleanup-tag || true
+            gh release create "$1" Unciv-nova.apk --repo "$REPO" --prerelease --target "$SHA" \
+              --title "$2 (${SHORT_SHA})" \
+              --notes "Debug build of \`${HEAD_REF}\` at ${SHORT_SHA}, built ${BUILT}.
+
+          Download on the Nova: ${URL}"
+            echo "$URL"
+          }
+
+          MESSAGE="📱 Nova APK for ${SHORT_SHA}:"
+          if [ -n "$PR_NUMBER" ]; then
+            URL=$(publish "nova-pr-${PR_NUMBER}" "Nova PR #${PR_NUMBER}" | tail -1)
+            MESSAGE="${MESSAGE} ${URL}"
+            # Top of the stack (no open PR builds on this branch) also feeds nova-preview
+            ABOVE=$(gh pr list --repo "$REPO" --state open --base "$HEAD_REF" --json number --jq 'length')
+            if [ "$ABOVE" = "0" ]; then
+              publish nova-preview "Nova preview" > /dev/null
+              MESSAGE="${MESSAGE} (top of stack, also at nova-preview)"
+            fi
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$MESSAGE"
+          else
+            publish nova-preview "Nova preview" > /dev/null
+          fi
