@@ -179,7 +179,7 @@ class GamepadNavigator(
             is SelectBox<*> -> adjust(1) // cycling is far easier than a drop-down list with a gamepad
             is TextField -> {
                 stage.keyboardFocus = actor
-                actor.onscreenKeyboard.show(true)
+                tap(actor) // a tap brings up the on-screen keyboard as usual
             }
             else -> tap(actor)
         }
