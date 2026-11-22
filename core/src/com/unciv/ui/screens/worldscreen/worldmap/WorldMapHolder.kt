@@ -15,6 +15,8 @@ import com.badlogic.gdx.scenes.scene2d.actions.Actions
 import com.badlogic.gdx.scenes.scene2d.ui.Table
 import com.badlogic.gdx.utils.Align
 import com.badlogic.gdx.math.Interpolation
+import com.badlogic.gdx.math.Vector2
+import com.badlogic.gdx.scenes.scene2d.ui.Image
 import com.badlogic.gdx.scenes.scene2d.*
 import com.unciv.UncivGame
 import com.unciv.logic.map.*
@@ -33,6 +35,9 @@ import com.unciv.ui.components.extensions.center
 import com.unciv.ui.components.extensions.isShiftKeyPressed
 import com.unciv.ui.components.extensions.surroundWithCircle
 import com.unciv.ui.components.input.*
+import com.unciv.ui.components.input.gamepad.activateFirstActivatable
+import com.unciv.models.tilesets.TileSetCache
+import com.unciv.ui.images.ImageGetter
 import com.unciv.ui.components.tilegroups.TileGroup
 import com.unciv.ui.components.tilegroups.TileGroupMap
 import com.unciv.ui.components.tilegroups.TileSetStrings
@@ -163,6 +168,109 @@ class WorldMapHolder(
 
         tileGroupMap.addListener(listener)
     }
+
+    // region Gamepad
+
+    /** The tile under the gamepad reticle (screen center), `null` when not in controller mode */
+    internal var gamepadReticleTile: TileView? = null
+        private set
+    private var reticleTileHighlight: Image? = null
+    private val tileGroupsByPosition by lazy { tileGroups.values.associateBy { it.tileView.position() } }
+
+    private fun getTileGroupAt(localCoords: Vector2): WorldTileGroup? {
+        val positional = tileGroupMap.getPositionalVector(localCoords)
+        val hex = HexMath.roundHexCoords(HexMath.world2HexCoords(positional)).toHexCoord()
+        tileGroupsByPosition[hex]?.let { return it }
+        if (!tileMap.mapParameters.worldWrap) return null
+        val wrapped = HexMath.getUnwrappedNearestTo(hex, HexCoord.Zero, tileMap.maxLongitude).toHexCoord()
+        return tileGroupsByPosition[wrapped]
+    }
+
+    /** Tracks and highlights the tile under the screen center. @return `true` if that tile changed */
+    internal fun updateGamepadReticle(show: Boolean): Boolean {
+        val highlight = reticleTileHighlight
+        if (!show) {
+            highlight?.isVisible = false
+            val changed = gamepadReticleTile != null
+            gamepadReticleTile = null
+            return changed
+        }
+        val stage = stage ?: return false
+        val local = tileGroupMap.stageToLocalCoordinates(Vector2(stage.width / 2f, stage.height / 2f))
+        val group = getTileGroupAt(local)
+
+        val image = highlight ?: ImageGetter.getImage(currentTileSetStrings.highlight).also {
+            it.touchable = Touchable.disabled
+            it.color = Color(1f, 1f, 1f, 0.45f)
+            reticleTileHighlight = it
+        }
+        if (image.parent == null) tileGroupMap.addActor(image)
+        image.toFront()
+
+        if (group == null) {
+            image.isVisible = false
+            val changed = gamepadReticleTile != null
+            gamepadReticleTile = null
+            return changed
+        }
+        image.isVisible = true
+        if (group.tileView == gamepadReticleTile) return false
+
+        gamepadReticleTile = group.tileView
+        image.setSize(group.hexagonImageWidth, image.height * group.hexagonImageWidth / image.width)
+        image.setOrigin(group.hexagonImageOriginX, group.hexagonImageOriginY)
+        image.setScale(TileSetCache.getCurrent().config.tileScale)
+        image.setPosition(group.x + group.hexagonImagePosition.first, group.y + group.hexagonImagePosition.second)
+        return true
+    }
+
+    /**
+     *  Gamepad "A" on a tile - every outcome takes a single press:
+     *  1. confirms a pending action button shown on that tile (e.g. "Move here", swap, connect road, spy)
+     *  2. if the selected unit can move to / attack that tile, does so right away
+     *  3. selects a unit standing there (units take precedence over the city they're in)
+     *  4. opens the city there (city screen, or the info popup for foreign cities)
+     *  5. otherwise does nothing - empty tiles are not selectable
+     */
+    internal fun gamepadConfirm(tileView: TileView) {
+        val unitTable = worldScreen.bottomUnitTable
+        val unit = unitTable.selectedUnit
+
+        if (selectedTile == tileView && unitActionOverlays.isNotEmpty()) {
+            if (unitActionOverlays.toList().any { it.activateFirstActivatable() }) return
+        }
+
+        if (unit != null && unit.getTile() != tileView && worldScreen.canChangeState
+                && !unitTable.selectedUnitIsConnectingRoad) {
+            val canAct = if (unitTable.selectedUnitIsSwapping) unit.canSwapTo(tileView)
+                else (unit.canAttack() && unit.getAttackableEnemies().any { it.getTileToAttack() == tileView })
+                    || unit.canReach(tileView)
+            if (canAct) {
+                SoundPlayer.play(UncivSound.Click)
+                onTileRightClicked(unit, tileView)
+                return
+            }
+        }
+
+        val cityLayer = tileGroups[tileView]?.layerCityButton?.takeIf { it.hasButton() }
+        val unitAlreadySelectedHere = unit != null && unit.getTile() == tileView
+        val hasUnits = tileView.getVisibleUnits().any()
+
+        if (hasUnits && !(cityLayer != null && unitAlreadySelectedHere)) {
+            // Select (or cycle through) the units on the tile
+            SoundPlayer.play(UncivSound.Click)
+            onTileClicked(tileView)
+            return
+        }
+
+        if (cityLayer != null) {
+            SoundPlayer.play(UncivSound.Click)
+            cityLayer.enterCity()
+        }
+        // Empty tile: nothing to select
+    }
+
+    // endregion
 
     fun onTileClicked(tileView: TileView) {
         removeUnitActionOverlay()

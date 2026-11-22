@@ -231,27 +231,29 @@ class CityButton(val foreignCityView: ForeignCityView, private val tileGroup: Ti
         listOfHiddenUnitMarkers.add(indicator)
     }
 
+    /** Open the city screen for own cities, the info popup for foreign ones (also used by gamepad "A") */
+    internal fun enterCityOrInfoPopup() {
+        val unitTable = GUI.getUnitTable()
+        // second tap on the button will go to the city screen
+        // if this city belongs to you and you are not iterating though the air units
+        val cityView = foreignCityView.tryGetCityView()
+        val selectedUnit = unitTable.selectedUnit
+        val isIteratingAirUnits = selectedUnit != null && selectedUnit.isAirUnit()
+            && selectedUnit.getTile() == foreignCityView.getCenterTile()
+        // Foreign cities with a spy should offer both diplomacy and inspection.
+        val openCityDirectly = belongsToViewingCiv() || viewingPlayer.isSpectator || DebugUtils.VISIBLE_MAP
+        if (cityView != null && !isIteratingAirUnits && openCityDirectly) {
+            GUI.pushScreen { CityScreen(cityView) }
+        }
+        else if (foreignCityView.isKnownTo(viewingPlayer))
+            foreignCityInfoPopup()
+    }
+
     private fun setButtonActions() {
         val unitTable = GUI.getUnitTable()
 
         // So you can click anywhere on the button to go to the city
         touchable = Touchable.childrenOnly
-
-        fun enterCityOrInfoPopup() {
-            // second tap on the button will go to the city screen
-            // if this city belongs to you and you are not iterating though the air units
-            val cityView = foreignCityView.tryGetCityView()
-            val selectedUnit = unitTable.selectedUnit
-            val isIteratingAirUnits = selectedUnit != null && selectedUnit.isAirUnit()
-                && selectedUnit.getTile() == foreignCityView.getCenterTile()
-            // Foreign cities with a spy should offer both diplomacy and inspection.
-            val openCityDirectly = belongsToViewingCiv() || viewingPlayer.isSpectator || DebugUtils.VISIBLE_MAP
-            if (cityView != null && !isIteratingAirUnits && openCityDirectly) {
-                GUI.pushScreen { CityScreen(cityView) }
-            }
-            else if (foreignCityView.isKnownTo(viewingPlayer))
-                foreignCityInfoPopup()
-        }
 
         onClick {
             // clicking swings the button a little down to allow selection of units there.

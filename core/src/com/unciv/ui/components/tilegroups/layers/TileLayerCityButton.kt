@@ -27,6 +27,13 @@ class TileLayerCityButton(tileGroup: TileGroup, size: Float) : TileLayer(tileGro
     /** Returns true when a CityButton is currently displayed on this tile. */
     fun hasButton(): Boolean = cityButton != null
 
+    /** Opens the city (own) or its info popup (foreign) right away - gamepad support. @return `true` if there was a city */
+    fun enterCity(): Boolean {
+        val button = cityButton ?: return false
+        button.enterCityOrInfoPopup()
+        return true
+    }
+
     /** Enables or disables scene-graph transform on the city button wrapper (for scaling). */
     fun setButtonTransform(isTransform: Boolean) {
         cityButtonWrapper?.isTransform = isTransform

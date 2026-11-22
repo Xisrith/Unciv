@@ -32,25 +32,7 @@ class IdleUnitButton (
         enable()
         keyShortcuts.add(keyShortcutBind)
         onActivation (binding = keyShortcutBind) {
-
-            val idleUnits = unitTable.worldScreen.selectedGameView.civView.getUnits().filter { it.isIdle() }
-            if (idleUnits.isEmpty()) return@onActivation
-
-            val selectedUnit = unitTable.selectedUnit
-            val unitToSelect: MapUnitView
-            if (selectedUnit == null || !idleUnits.contains(selectedUnit))
-                unitToSelect = idleUnits.first()
-            else {
-                var index = idleUnits.indexOf(selectedUnit)
-                if (previous) index-- else index++
-                index += idleUnits.size
-                index %= idleUnits.size // for looping
-                unitToSelect = idleUnits[index]
-            }
-
-            tileMapHolder.setCenterPosition(unitToSelect.getTile().position())
-            unitTable.selectUnit(unitToSelect)
-            unitTable.worldScreen.shouldUpdate = true
+            unitTable.cycleIdleUnit(previous)
         }
     }
 
