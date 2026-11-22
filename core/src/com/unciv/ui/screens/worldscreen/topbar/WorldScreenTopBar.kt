@@ -1,5 +1,6 @@
 package com.unciv.ui.screens.worldscreen.topbar
 
+import com.unciv.ui.components.input.gamepad.GamepadState
 import com.badlogic.gdx.graphics.Color
 import com.badlogic.gdx.graphics.g2d.Batch
 import com.badlogic.gdx.scenes.scene2d.Actor
@@ -114,10 +115,12 @@ class WorldScreenTopBar(internal val worldScreen: WorldScreen) : Table() {
         val targetWidth = stage.width
         val statsWidth = statsTable.prefWidth
         val resourceWidth = resourceTable.prefWidth
-        val overviewWidth = overviewButton.minWidth
-        val overviewHeight = overviewButton.minHeight
-        val selectedCivWidth = selectedCivTable.minWidth
-        val selectedCivHeight = selectedCivTable.minHeight
+        // Controller layout: Start opens the menu and Select the overview, so their buttons (and the civ name) are hidden
+        val hideCornerButtons = GamepadState.controllerMode
+        val overviewWidth = if (hideCornerButtons) 0f else overviewButton.minWidth
+        val overviewHeight = if (hideCornerButtons) 0f else overviewButton.minHeight
+        val selectedCivWidth = if (hideCornerButtons) 0f else selectedCivTable.minWidth
+        val selectedCivHeight = if (hideCornerButtons) 0f else selectedCivTable.minHeight
         // Since stats/resource lines are centered, the max decides when to snap the overlaid elements down
         val leftRightNeeded = max(selectedCivWidth, overviewWidth)
         // Height of the two "overlay" elements should be equal, but just in case:
@@ -163,6 +166,7 @@ class WorldScreenTopBar(internal val worldScreen: WorldScreen) : Table() {
 
         selectedCivTable.setPosition(0f, (centerButtonsToHeight - selectedCivHeight) / 2f)
         overviewButton.setPosition(targetWidth - overviewWidth, (centerButtonsToHeight - overviewHeight) / 2f)
+        if (hideCornerButtons) return
         addActor(selectedCivTable) // needs to be after size
         addActor(overviewButton)
     }
