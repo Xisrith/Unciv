@@ -225,11 +225,12 @@ class WorldMapHolder(
     }
 
     /**
-     *  Gamepad "A" on a tile:
+     *  Gamepad "A" on a tile - every outcome takes a single press:
      *  1. confirms a pending action button shown on that tile (e.g. "Move here", swap, connect road, spy)
-     *  2. otherwise, if the selected unit can move to / attack that tile, does so right away
-     *  3. otherwise, on a city that is already selected (or whose tile holds the selected unit), acts like tapping the city button
-     *  4. otherwise behaves like a normal tap on the tile (select unit / city / show tile)
+     *  2. if the selected unit can move to / attack that tile, does so right away
+     *  3. selects a unit standing there (units take precedence over the city they're in)
+     *  4. opens the city there (city screen, or the info popup for foreign cities)
+     *  5. otherwise does nothing - empty tiles are not selectable
      */
     internal fun gamepadConfirm(tileView: TileView) {
         val unitTable = worldScreen.bottomUnitTable
@@ -251,15 +252,22 @@ class WorldMapHolder(
             }
         }
 
-        val cityLayer = tileGroups[tileView]?.layerCityButton
-        val cityIsSelected = unitTable.selectedCity?.getCenterTile() == tileView
-        val unitIsInCity = unit != null && unit.getTile() == tileView
-        if (cityLayer != null && cityLayer.hasButton() && (cityIsSelected || unitIsInCity)) {
-            if (cityLayer.activateButton()) return
+        val cityLayer = tileGroups[tileView]?.layerCityButton?.takeIf { it.hasButton() }
+        val unitAlreadySelectedHere = unit != null && unit.getTile() == tileView
+        val hasUnits = tileView.getVisibleUnits().any()
+
+        if (hasUnits && !(cityLayer != null && unitAlreadySelectedHere)) {
+            // Select (or cycle through) the units on the tile
+            SoundPlayer.play(UncivSound.Click)
+            onTileClicked(tileView)
+            return
         }
 
-        SoundPlayer.play(UncivSound.Click)
-        onTileClicked(tileView)
+        if (cityLayer != null) {
+            SoundPlayer.play(UncivSound.Click)
+            cityLayer.enterCity()
+        }
+        // Empty tile: nothing to select
     }
 
     // endregion
