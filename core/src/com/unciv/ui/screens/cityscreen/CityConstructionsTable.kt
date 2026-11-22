@@ -54,7 +54,7 @@ import kotlin.math.max
 import kotlin.math.min
 import com.unciv.ui.components.widgets.AutoScrollPane as ScrollPane
 
-private class ConstructionButtonDTO(
+internal class ConstructionButtonDTO(
     val construction: IConstruction,
     val buttonText: String,
     val resourcesRequired: HashMap<String, Int>? = null,
@@ -279,7 +279,7 @@ class CityConstructionsTable(private val cityScreen: CityScreen) {
         }
     }
 
-    private fun getConstructionButtonDTOs(): ArrayList<ConstructionButtonDTO> {
+    internal fun getConstructionButtonDTOs(): ArrayList<ConstructionButtonDTO> {
         val constructionButtonDTOList = ArrayList<ConstructionButtonDTO>()
 
         val cityConstructions = cityView.constructions
@@ -648,7 +648,7 @@ class CityConstructionsTable(private val cityScreen: CityScreen) {
 
     private fun isSelectedQueueEntry(): Boolean = selectedQueueEntry >= 0
 
-    private fun cannotAddConstructionToQueue(construction: IConstruction): Boolean {
+    internal fun cannotAddConstructionToQueue(construction: IConstruction): Boolean {
         val cityConstructions = cityView.constructions
         val queue = cityConstructions.constructionQueue // Read once for all the checks
         return !cityScreen.canChangeState
@@ -657,7 +657,7 @@ class CityConstructionsTable(private val cityScreen: CityScreen) {
                 || construction is PerpetualConstruction && construction.name in queue
     }
 
-    private fun addConstructionToQueue(construction: IConstruction) {
+    internal fun addConstructionToQueue(construction: IConstruction) {
         // Some evil person decided to double tap real fast - #4977
         if (cannotAddConstructionToQueue(construction))
             return

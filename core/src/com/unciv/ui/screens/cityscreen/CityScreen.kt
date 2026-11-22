@@ -1,5 +1,6 @@
 package com.unciv.ui.screens.cityscreen
 
+import com.unciv.ui.components.input.gamepad.GamepadState
 import com.unciv.logic.automation.Automation
 import com.unciv.view.location
 import com.badlogic.gdx.graphics.Color
@@ -108,6 +109,10 @@ class CityScreen(
     }
 
 
+    /** Controller layout replacement for [constructionsTable]: just the queue + "Add to queue" */
+    internal val gamepadProductionPanel = GamepadProductionPanel(this)
+    internal val gamepadStatsPanel get() = cityStatsTable
+
     /** Holds City tiles group*/
     private var tileGroups = ArrayList<CityTileGroup>()
 
@@ -162,6 +167,7 @@ class CityScreen(
         stage.addActor(tileTable)
         stage.addActor(cityPickerTable)  // add late so it's top in Z-order and doesn't get covered in cramped portrait
         stage.addActor(exitCityButton)
+        stage.addActor(gamepadProductionPanel)
 
         cityView.updateCityStats()
         updateSync() // NOT async since that gives a "visual flash" when entering the city
@@ -195,8 +201,12 @@ class CityScreen(
     }
     
     internal fun updateSync(){
-        constructionsTable.isVisible = !isSpying
-        constructionsTable.update(selectedConstruction)
+        val gamepadLayout = GamepadState.controllerMode
+        constructionsTable.isVisible = !isSpying && !gamepadLayout
+        gamepadProductionPanel.isVisible = !isSpying && gamepadLayout
+        if (gamepadLayout) {
+            if (!isSpying) gamepadProductionPanel.update()
+        } else constructionsTable.update(selectedConstruction)
         updateWithoutConstructionAndMap()
 
         // Rest of screen: Map of surroundings
@@ -362,7 +372,27 @@ class CityScreen(
             razeCityButtonHolder.setPosition(centerX, stage.height - 20f, Align.top)
         }
         stage.addActor(razeCityButtonHolder)
+        // Controller layout: raze / annex live behind the X "more actions" popup
+        razeCityButtonHolder.isVisible = !GamepadState.controllerMode
     }
+
+    // region Gamepad
+
+    override fun createGamepadHandler() = CityScreenGamepad(this)
+
+    /** "Add to queue" in the controller layout: gather what can be built off-thread, then show the picker */
+    internal fun openGamepadConstructionPicker() {
+        if (!canCityBeChanged()) return
+        Concurrency.run("Gamepad construction picker") {
+            val dtos = constructionsTable.getConstructionButtonDTOs()
+            Concurrency.runOnGLThread {
+                if (game.screen === this@CityScreen)
+                    GamepadConstructionPickerPopup(this@CityScreen, dtos, constructionsTable)
+            }
+        }
+    }
+
+    // endregion
 
     private fun addTiles() {
         val viewRange = max(cityView.getExpandRange(), cityView.getWorkRange())
