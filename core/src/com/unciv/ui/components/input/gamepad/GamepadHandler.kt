@@ -35,8 +35,43 @@ open class GamepadMenuHandler(protected val screen: BaseScreen) : GamepadHandler
         stage.injectKey(Input.Keys.ESCAPE)
     }
 
+    // region Button prompts
+
+    private val promptBar = GamepadPromptBar()
+    private var promptRefresh = 0f
+    private var cachedPrompts: List<GamepadPrompt> = emptyList()
+
+    /** Contextual button prompts for the bottom bar. Polled a few times per second and after every button press. */
+    protected open fun prompts(): List<GamepadPrompt> =
+        if (navigationRoot() == null) emptyList()
+        else listOf(GamepadPrompt(GamepadPrompt.A, "Select"), GamepadPrompt(GamepadPrompt.B, "Back"))
+
+    private fun updatePromptBar(delta: Float) {
+        if (!GamepadState.controllerMode) {
+            promptBar.remove()
+            return
+        }
+        promptRefresh -= delta
+        if (promptRefresh <= 0f) {
+            promptRefresh = 0.15f
+            cachedPrompts = prompts()
+        }
+        val stage = screen.stage
+        if (promptBar.stage == null) stage.addActor(promptBar)
+        promptBar.toFront()
+        promptBar.show(cachedPrompts, stage)
+    }
+
+    /** Recompute the prompts on the next frame (the context probably changed) */
+    protected fun refreshPrompts() {
+        promptRefresh = 0f
+    }
+
+    // endregion
+
     override fun keyDown(keyCode: Int): Boolean {
         val isDpad = GamepadState.isDpadKey(keyCode)
+        if (GamepadState.isGamepadKey(keyCode)) refreshPrompts()
         if (!isDpad && !GamepadState.isGamepadKey(keyCode)) return false
         // Let a focused text field keep its cursor keys
         if (isDpad && screen.stage.keyboardFocus is TextField) return false
@@ -69,6 +104,7 @@ open class GamepadMenuHandler(protected val screen: BaseScreen) : GamepadHandler
     private var autoFocusCooldown = 0f
 
     override fun update(delta: Float) {
+        updatePromptBar(delta)
         val root = navigationRoot()
         if (root == null) {
             if (navigator.focused != null) navigator.clear()

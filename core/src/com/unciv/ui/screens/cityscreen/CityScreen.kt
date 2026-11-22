@@ -1,5 +1,6 @@
 package com.unciv.ui.screens.cityscreen
 
+import com.unciv.ui.components.input.gamepad.GamepadPromptBar
 import com.unciv.ui.components.input.gamepad.GamepadState
 import com.unciv.logic.automation.Automation
 import com.unciv.view.location
@@ -236,7 +237,14 @@ class CityScreen(
         val centeredX = (stage.width - leftMargin - rightMargin) / 2 + leftMargin
         exitCityButton.setPosition(centeredX, 10f, Align.bottom)
         cityPickerTable.update()
-        cityPickerTable.setPosition(centeredX, exitCityButton.top + 10f, Align.bottom)
+        if (GamepadState.controllerMode) {
+            // Controller layout: B leaves the city, the bottom strip belongs to the button prompt bar
+            exitCityButton.isVisible = false
+            cityPickerTable.setPosition(centeredX, GamepadPromptBar.HEIGHT + 6f, Align.bottom)
+        } else {
+            exitCityButton.isVisible = true
+            cityPickerTable.setPosition(centeredX, exitCityButton.top + 10f, Align.bottom)
+        }
 
         // Top right of screen: Stats / Specialists
         updateCityStats()

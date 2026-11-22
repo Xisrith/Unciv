@@ -5,7 +5,9 @@ import com.badlogic.gdx.graphics.Color
 import com.badlogic.gdx.scenes.scene2d.Group
 import com.badlogic.gdx.scenes.scene2d.Touchable
 import com.unciv.ui.components.input.activate
+import com.unciv.ui.components.extensions.isEnabled
 import com.unciv.ui.components.input.gamepad.GamepadMenuHandler
+import com.unciv.ui.components.input.gamepad.GamepadPrompt
 import com.unciv.ui.components.input.gamepad.GamepadState
 import com.unciv.ui.images.ImageGetter
 import com.unciv.ui.popups.activePopup
@@ -13,6 +15,7 @@ import com.unciv.ui.screens.worldscreen.mainmenu.WorldScreenMenuPopup
 import com.unciv.ui.screens.worldscreen.unit.actions.GamepadUnitActionsPopup
 import com.unciv.ui.screens.worldscreen.worldmap.GamepadPathPreview
 import com.unciv.view.MapUnitView
+import com.unciv.view.TileView
 import com.unciv.view.isAirUnit
 import com.unciv.view.isCivilian
 
@@ -55,6 +58,7 @@ class WorldScreenGamepad(private val worldScreen: WorldScreen) : GamepadMenuHand
     override fun keyDown(keyCode: Int): Boolean {
         val isDpad = GamepadState.isDpadKey(keyCode)
         if (!isDpad && !GamepadState.isGamepadKey(keyCode)) return false
+        refreshPrompts()
 
         if (!isMapMode()) {
             val popup = worldScreen.activePopup
@@ -85,6 +89,64 @@ class WorldScreenGamepad(private val worldScreen: WorldScreen) : GamepadMenuHand
         }
         return true
     }
+
+    // region Button prompts
+
+    private var attackKey: Triple<MapUnitView?, TileView?, TileView?>? = null
+    private var attackable = false
+
+    /** Cached: getAttackableEnemies isn't free and the prompts are polled several times per second */
+    private fun canAttack(unit: MapUnitView, tile: TileView): Boolean {
+        val key = Triple(unit, unit.getTile(), tile)
+        if (key != attackKey) {
+            attackKey = key
+            attackable = unit.canAttack() && unit.getAttackableEnemies().any { it.getTileToAttack() == tile }
+        }
+        return attackable
+    }
+
+    /** What A would do on the reticle tile (mirrors [WorldMapHolder.gamepadConfirm]) */
+    private fun getALabel(unit: MapUnitView?, tile: TileView?): String? {
+        if (tile == null) return null
+        if (unit != null && unit.getTile() != tile && worldScreen.canChangeState) {
+            if (canAttack(unit, tile)) return "Attack"
+            // Long routes come from the path preview's off-thread pathfinding
+            if (unit.canReachInCurrentTurn(tile) || pathPreview.routeTarget == tile) return "Move"
+        }
+        if (tile.getVisibleUnits().any()) return "Select"
+        if (mapHolder.tileGroups[tile]?.layerCityButton?.hasButton() == true) return "Open city"
+        return null
+    }
+
+    override fun prompts(): List<GamepadPrompt> {
+        if (!isMapMode()) return super.prompts()
+        val unitTable = worldScreen.bottomUnitTable
+        val unit = unitTable.selectedUnit
+        val city = unitTable.selectedCity
+        val result = ArrayList<GamepadPrompt>()
+        getALabel(unit, mapHolder.gamepadReticleTile)?.let { result += GamepadPrompt(GamepadPrompt.A, it) }
+        if (unit != null || city != null || unitTable.selectedSpy != null)
+            result += GamepadPrompt(GamepadPrompt.B, "Deselect")
+        if (unit != null && worldScreen.canChangeState)
+            result += GamepadPrompt(GamepadPrompt.X, "Actions")
+        val nextTurnText = worldScreen.nextTurnButton.label.text.toString()
+        if (worldScreen.nextTurnButton.isEnabled && nextTurnText.isNotBlank())
+            result += GamepadPrompt(GamepadPrompt.Y, nextTurnText)
+        val cycling = when {
+            city != null -> "Cities"
+            unit == null -> "Idle units"
+            else -> when (categoryOf(unit)) {
+                CycleCategory.Air -> "Air units"
+                CycleCategory.Civilians -> "Civilians"
+                CycleCategory.Naval -> "Naval units"
+                else -> "Land units"
+            }
+        }
+        result += GamepadPrompt(GamepadPrompt.BUMPERS, cycling)
+        return result
+    }
+
+    // endregion
 
     // region Bumper cycling
 

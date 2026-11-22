@@ -27,6 +27,10 @@ internal class GamepadPathPreview(private val mapHolder: WorldMapHolder) {
 
     private var shownKey: Triple<MapUnitView?, TileView?, TileView?>? = null
 
+    /** The tile a route is currently displayed to, `null` if none (e.g. unreachable) */
+    var routeTarget: TileView? = null
+        private set
+
     private val stepColor = Color(0.53f, 0.81f, 0.98f, 0.9f)
     private val turnColor = Color(0.08f, 0.32f, 0.55f, 0.95f)
 
@@ -71,6 +75,7 @@ internal class GamepadPathPreview(private val mapHolder: WorldMapHolder) {
 
     private fun show(steps: List<TileView>, turnEnds: List<TileView>) {
         clear()
+        routeTarget = turnEnds.lastOrNull()
         for (tile in steps)
             if (tile !in turnEnds) addMarker(tile, ImageGetter.getCircle(stepColor, 10f))
         turnEnds.forEachIndexed { index, tile ->
@@ -89,6 +94,7 @@ internal class GamepadPathPreview(private val mapHolder: WorldMapHolder) {
     }
 
     fun clear() {
+        routeTarget = null
         for (marker in markers) marker.remove()
         markers.clear()
     }

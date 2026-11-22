@@ -1,5 +1,7 @@
 package com.unciv.ui.screens.worldscreen.bottombar
 
+import com.unciv.ui.components.input.gamepad.GamepadPromptBar
+import com.unciv.ui.components.input.gamepad.GamepadState
 import com.unciv.view.getNukeBlastRadius
 import com.unciv.view.isCivilian
 import com.unciv.view.isNuclearWeapon
@@ -111,7 +113,9 @@ class BattleTable(val worldScreen: WorldScreen) : Table() {
             isVisible = false
         }
 
-        setPosition(stage.width / 2 - width / 2, 5f)
+        // Controller layout keeps the bottom strip free for the button prompt bar
+        val bottom = if (GamepadState.controllerMode) GamepadPromptBar.HEIGHT + 5f else 5f
+        setPosition(stage.width / 2 - width / 2, bottom)
     }
 
     /** The selected unit, if it's eligible to attack (purely cosmetic checks - hide the battle table otherwise). */
