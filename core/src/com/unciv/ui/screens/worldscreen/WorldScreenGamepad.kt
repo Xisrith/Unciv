@@ -10,6 +10,7 @@ import com.unciv.ui.components.input.gamepad.GamepadState
 import com.unciv.ui.images.ImageGetter
 import com.unciv.ui.popups.activePopup
 import com.unciv.ui.screens.worldscreen.mainmenu.WorldScreenMenuPopup
+import com.unciv.ui.screens.worldscreen.worldmap.GamepadPathPreview
 import com.unciv.view.MapUnitView
 import com.unciv.view.isAirUnit
 import com.unciv.view.isCivilian
@@ -23,6 +24,7 @@ import com.unciv.view.isCivilian
  * - B: deselect
  * - L1 / R1: previous / next of the same kind as the selection (cities, land military, civilians,
  *   naval, air units), or the previous / next idle unit when nothing is selected
+ * - With a unit selected, the route to the reticle tile is previewed (numbers = end of each turn)
  * - L2 / R2: zoom out / in
  * - Start: game menu, Select: Empire overview
  * - Y: the "do next thing" button (next unit / pick tech / next turn ...)
@@ -32,6 +34,8 @@ import com.unciv.view.isCivilian
  */
 class WorldScreenGamepad(private val worldScreen: WorldScreen) : GamepadMenuHandler(worldScreen) {
     private val mapHolder get() = worldScreen.mapHolder
+
+    private val pathPreview by lazy { GamepadPathPreview(mapHolder) }
 
     private val reticleDot = ImageGetter.getCircle(Color.WHITE, 10f).apply {
         touchable = Touchable.disabled
@@ -61,7 +65,10 @@ class WorldScreenGamepad(private val worldScreen: WorldScreen) : GamepadMenuHand
 
         // Map mode
         when (keyCode) {
-            Input.Keys.BUTTON_A -> mapHolder.gamepadReticleTile?.let { mapHolder.gamepadConfirm(it) }
+            Input.Keys.BUTTON_A -> mapHolder.gamepadReticleTile?.let {
+                mapHolder.gamepadConfirm(it)
+                pathPreview.invalidate()
+            }
             Input.Keys.BUTTON_B -> deselect()
             Input.Keys.BUTTON_Y -> worldScreen.nextTurnButton.activate() // disabled while waiting / not our turn
             Input.Keys.BUTTON_L1 -> cycleSelection(previous = true)
@@ -136,6 +143,9 @@ class WorldScreenGamepad(private val worldScreen: WorldScreen) : GamepadMenuHand
     override fun update(delta: Float) {
         super.update(delta)
         updateReticle()
+
+        val previewUnit = if (GamepadState.controllerMode && isMapMode()) worldScreen.bottomUnitTable.selectedUnit else null
+        pathPreview.update(previewUnit, mapHolder.gamepadReticleTile, delta)
 
         if (!isMapMode()) return
 
