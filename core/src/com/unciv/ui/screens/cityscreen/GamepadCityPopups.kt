@@ -4,8 +4,11 @@ import com.badlogic.gdx.graphics.Color
 import com.badlogic.gdx.scenes.scene2d.Touchable
 import com.badlogic.gdx.scenes.scene2d.ui.Table
 import com.unciv.models.ruleset.Building
+import com.unciv.models.ruleset.INonPerpetualConstruction
+import com.unciv.models.stats.Stat
 import com.unciv.models.ruleset.unique.UniqueType
 import com.unciv.models.ruleset.unit.BaseUnit
+import com.unciv.models.translations.tr
 import com.unciv.ui.components.extensions.disable
 import com.unciv.ui.components.extensions.toLabel
 import com.unciv.ui.components.extensions.toTextButton
@@ -78,6 +81,69 @@ internal class GamepadConstructionPickerPopup(
             constructionsTable.addConstructionToQueue(dto.construction)
             cityScreen.updateAsync()
         }
+        return row
+    }
+}
+
+/** "Buy" from the gamepad production panel: everything purchasable in this city, with its price per currency */
+internal class GamepadBuyPopup(
+    private val cityScreen: CityScreen,
+    dtos: List<ConstructionButtonDTO>,
+    private val buyButtonFactory: BuyButtonFactory
+) : Popup(cityScreen, Scrollability.WithoutButtons) {
+
+    init {
+        addGoodSizedLabel("Buy", 24).padBottom(10f).row()
+        val cityView = cityScreen.cityView
+
+        val categories = linkedMapOf<String, MutableList<Table>>(
+            "Units" to mutableListOf(), "Buildings" to mutableListOf(), "Wonders" to mutableListOf(),
+            "National Wonders" to mutableListOf()
+        )
+        for (dto in dtos) {
+            val construction = dto.construction as? INonPerpetualConstruction ?: continue
+            for (stat in Stat.statsUsableToBuy) {
+                if (!cityView.canBePurchasedWithStat(construction, stat)) continue
+                val cost = cityView.constructions.getStatBuyCost(construction, stat) ?: continue
+                val allowed = cityScreen.canChangeState &&
+                    cityView.constructions.isConstructionPurchaseAllowed(construction, stat, cost)
+                val category = when {
+                    construction is BaseUnit -> "Units"
+                    construction is Building && construction.isWonder -> "Wonders"
+                    construction is Building && construction.isNationalWonder -> "National Wonders"
+                    else -> "Buildings"
+                }
+                categories[category]!! += getEntry(construction, stat, cost, allowed)
+            }
+        }
+
+        if (categories.values.all { it.isEmpty() })
+            addGoodSizedLabel("Nothing can be bought in this city right now").row()
+
+        for ((title, entries) in categories) {
+            if (entries.isEmpty()) continue
+            add(title.toLabel(Color.GOLD, 18)).left().padTop(8f).padBottom(4f).row()
+            for (entry in entries) add(entry).growX().padBottom(4f).row()
+        }
+
+        addCloseButton()
+        open()
+    }
+
+    private fun getEntry(construction: INonPerpetualConstruction, stat: Stat, cost: Int, allowed: Boolean): Table {
+        val row = Table()
+        row.add(ImageGetter.getConstructionPortrait(construction.name, 40f)).padRight(10f)
+        row.add(construction.name.toLabel(if (allowed) Color.WHITE else Color.GRAY, 18)).growX().left()
+        row.add((cost.tr() + stat.character).toLabel(if (allowed) Color.WHITE else Color.GRAY, 18)).right().padLeft(16f)
+        if (allowed) {
+            row.touchable = Touchable.enabled
+            row.onClick {
+                close()
+                cityScreen.selectedQueueEntry = -1 // buying from this list never targets a queue slot
+                cityScreen.selectConstruction(construction)
+                buyButtonFactory.buyFromGamepad(construction, stat)
+            }
+        } else row.touchable = Touchable.disabled
         return row
     }
 }

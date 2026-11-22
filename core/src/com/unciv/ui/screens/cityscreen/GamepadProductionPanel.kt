@@ -19,7 +19,7 @@ import com.unciv.ui.screens.basescreen.BaseScreen
 
 /**
  * Controller layout for the left side of the city screen: just the production queue and an
- * "Add to queue" button (which opens [GamepadConstructionPickerPopup]).
+ * "Add to queue" button (which opens [GamepadConstructionPickerPopup]) and a "Buy" button ([GamepadBuyPopup]).
  *
  *     Production
  *     [icon] Thing that's being made
@@ -35,6 +35,7 @@ class GamepadProductionPanel(private val cityScreen: CityScreen) : Table(BaseScr
     private val scrollPane = AutoScrollPane(entriesTable)
     private val entryIndex = HashMap<Actor, Int>()
     private val addButton = "Add to queue".toTextButton()
+    private val buyButton = "Buy".toTextButton()
 
     init {
         background = BaseScreen.skinStrings.getUiBackground(
@@ -45,8 +46,10 @@ class GamepadProductionPanel(private val cityScreen: CityScreen) : Table(BaseScr
         defaults().left()
         add("Production".toLabel(fontSize = 24)).padBottom(8f).row()
         add(scrollPane).growX().maxHeight(cityScreen.stage.height * 0.7f).row()
-        add(addButton).growX().padTop(10f)
+        add(addButton).growX().padTop(10f).row()
+        add(buyButton).growX().padTop(6f)
         addButton.onActivation { cityScreen.openGamepadConstructionPicker() }
+        buyButton.onActivation { cityScreen.openGamepadConstructionPicker(buy = true) }
     }
 
     /** The queue index of the entry [actor] belongs to, or `null` if it isn't part of a queue entry */
@@ -93,6 +96,7 @@ class GamepadProductionPanel(private val cityScreen: CityScreen) : Table(BaseScr
         }
 
         addButton.isEnabled = cityScreen.canCityBeChanged()
+        buyButton.isEnabled = cityScreen.canChangeState // puppets may still buy in some rulesets - the list sorts that out
         pack()
         setPosition(CityScreen.posFromEdge, cityScreen.stage.height - CityScreen.posFromEdge, Align.topLeft)
     }

@@ -82,6 +82,9 @@ class BuyButtonFactory(val cityScreen: CityScreen) {
         return button
     }
 
+    /** Gamepad "Buy" list: same flow as pressing a buy button (special tile picking, confirmation, purchase) */
+    internal fun buyFromGamepad(construction: INonPerpetualConstruction, stat: Stat) = buyButtonOnClick(construction, stat)
+
     private fun buyButtonOnClick(construction: INonPerpetualConstruction, stat: Stat = preferredBuyStat) {
         if (construction !is Building || !construction.hasCreateOneImprovementUnique())
             return askToBuyConstruction(construction, stat)

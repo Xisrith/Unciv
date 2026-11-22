@@ -77,7 +77,7 @@ class CityConstructionsTable(private val cityScreen: CityScreen) {
     private val constructionsQueueTable = Table()
     private val queueExpander: ExpanderTab
     private val buttonsTable = Table()
-    private val buyButtonFactory = BuyButtonFactory(cityScreen)
+    internal val buyButtonFactory = BuyButtonFactory(cityScreen)
 
     private val lowerTable = Table()
     private val availableConstructionsScrollPane: ScrollPane

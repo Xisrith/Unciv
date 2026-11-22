@@ -388,14 +388,15 @@ class CityScreen(
 
     override fun createGamepadHandler() = CityScreenGamepad(this)
 
-    /** "Add to queue" in the controller layout: gather what can be built off-thread, then show the picker */
-    internal fun openGamepadConstructionPicker() {
-        if (!canCityBeChanged()) return
+    /** "Add to queue" / "Buy" in the controller layout: gather the constructions off-thread, then show the picker */
+    internal fun openGamepadConstructionPicker(buy: Boolean = false) {
+        if (if (buy) !canChangeState else !canCityBeChanged()) return
         Concurrency.run("Gamepad construction picker") {
             val dtos = constructionsTable.getConstructionButtonDTOs()
             Concurrency.runOnGLThread {
-                if (game.screen === this@CityScreen)
-                    GamepadConstructionPickerPopup(this@CityScreen, dtos, constructionsTable)
+                if (game.screen !== this@CityScreen) return@runOnGLThread
+                if (buy) GamepadBuyPopup(this@CityScreen, dtos, constructionsTable.buyButtonFactory)
+                else GamepadConstructionPickerPopup(this@CityScreen, dtos, constructionsTable)
             }
         }
     }
