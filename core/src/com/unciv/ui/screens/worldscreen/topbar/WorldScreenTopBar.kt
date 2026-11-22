@@ -9,6 +9,7 @@ import com.badlogic.gdx.scenes.scene2d.Touchable
 import com.badlogic.gdx.scenes.scene2d.ui.Cell
 import com.badlogic.gdx.scenes.scene2d.ui.Container
 import com.badlogic.gdx.scenes.scene2d.ui.Table
+import com.badlogic.gdx.scenes.scene2d.utils.Drawable
 import com.badlogic.gdx.utils.Align
 import com.unciv.Constants
 import com.unciv.logic.civilization.Civilization
@@ -76,9 +77,17 @@ class WorldScreenTopBar(internal val worldScreen: WorldScreen) : Table() {
     private val rightFiller: BackgroundActor
     private var baseHeight = 0f
 
+    // Controller layout: everything in one row (see layoutSingleRow)
+    private val statsBackground: Drawable
+    private val resourceBackground: Drawable
+    private val singleRow = Table()
+
     companion object {
         /** When the "fillers" are used, this is added to the required height, alleviating the "gap" problem a little. */
         const val gapFillingExtraHeight = 1f
+        /** Controller single-row layout: padding at the screen edges / between the stats, resources and turn groups */
+        const val singleRowOuterPad = 8f
+        const val singleRowGap = 20f
     }
     //endregion
 
@@ -89,8 +98,11 @@ class WorldScreenTopBar(internal val worldScreen: WorldScreen) : Table() {
         setRound(false) // Prevent Table from doing internal rounding which would provoke gaps
 
         val backColor = BaseScreen.skinStrings.skinConfig.baseColor.darken(0.5f)
-        statsTable.background = BaseScreen.skinStrings.getUiBackground("WorldScreen/TopBar/StatsTable", tintColor = backColor)
-        resourceTable.background = BaseScreen.skinStrings.getUiBackground("WorldScreen/TopBar/ResourceTable", tintColor = backColor)
+        statsBackground = BaseScreen.skinStrings.getUiBackground("WorldScreen/TopBar/StatsTable", tintColor = backColor)
+        resourceBackground = BaseScreen.skinStrings.getUiBackground("WorldScreen/TopBar/ResourceTable", tintColor = backColor)
+        statsTable.background = statsBackground
+        resourceTable.background = resourceBackground
+        singleRow.setRound(false)
 
         val leftFillerBG = BaseScreen.skinStrings.getUiBackground("WorldScreen/TopBar/LeftAttachment", BaseScreen.skinStrings.roundedEdgeRectangleShape, backColor)
         leftFiller = BackgroundActor(leftFillerBG, Align.topLeft)
@@ -112,6 +124,11 @@ class WorldScreenTopBar(internal val worldScreen: WorldScreen) : Table() {
 
     /** Performs the layout tricks mentioned in the class Kdoc */
     private fun updateLayout() {
+        if (GamepadState.controllerMode) return layoutSingleRow()
+        resourceTable.setTurnsShown(true)
+        statsTable.background = statsBackground
+        resourceTable.background = resourceBackground
+
         val targetWidth = stage.width
         val statsWidth = statsTable.prefWidth
         val resourceWidth = resourceTable.prefWidth
@@ -169,6 +186,49 @@ class WorldScreenTopBar(internal val worldScreen: WorldScreen) : Table() {
         if (hideCornerButtons) return
         addActor(selectedCivTable) // needs to be after size
         addActor(overviewButton)
+    }
+
+    /**
+     * Controller layout (handheld screens): a single row instead of two -
+     * ```
+     * | Gold Science Happiness Culture Faith  Iron Horses ...            Turn 52 | 1450 BC |
+     * ```
+     * Stats and strategic resources are left-aligned, turn and year sit at the top right.
+     * The menu/civ and overview buttons are not shown (Start/Select replace them).
+     * If the left part is too wide, stats and resources are scaled down together.
+     */
+    private fun layoutSingleRow() {
+        val targetWidth = stage.width
+        resourceTable.setTurnsShown(false)
+        statsTable.background = null
+        resourceTable.background = null
+        val turnsLabel = resourceTable.turnsLabel
+
+        // Fit stats + resources into what the turn/year label leaves free
+        val turnsWidth = turnsLabel.prefWidth + 2 * singleRowOuterPad + singleRowGap
+        val available = targetWidth - turnsWidth - singleRowGap
+        statsTable.resetScale()
+        resourceTable.resetScale()
+        val leftWidth = statsTable.prefWidth + resourceTable.prefWidth
+        if (leftWidth > available) {
+            val scale = (available / leftWidth).coerceAtLeast(0.5f)
+            statsTable.setScale(scale)
+            resourceTable.setScale(scale)
+        }
+
+        clear()
+        singleRow.clearChildren()
+        singleRow.background = statsBackground
+        singleRow.add(statsTable).left().padLeft(singleRowOuterPad)
+        singleRow.add(resourceTable).left().padLeft(singleRowGap)
+        singleRow.add().growX()
+        singleRow.add(turnsLabel).right().padLeft(singleRowGap).padRight(singleRowOuterPad)
+
+        add(singleRow).growX().width(targetWidth)
+        layout()
+        baseHeight = getRowHeight(0)
+        setSize(targetWidth, prefHeight)
+        setPosition(0f, stage.height - prefHeight)
     }
 
     private class OverviewAndSupplyTable(worldScreen: WorldScreen) : Table(BaseScreen.skin) {

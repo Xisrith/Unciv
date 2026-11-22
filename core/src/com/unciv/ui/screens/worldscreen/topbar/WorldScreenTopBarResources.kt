@@ -21,7 +21,9 @@ import com.unciv.ui.screens.overviewscreen.EmpireOverviewCategories
 import com.unciv.ui.screens.victoryscreen.VictoryScreen
 
 internal class WorldScreenTopBarResources(topbar: WorldScreenTopBar) : ScalingTableWrapper() {
-    private val turnsLabel = "Turns: 0/400".toLabel()
+    /** Internal so the controller layout can place it at the far right of the single-row top bar */
+    internal val turnsLabel = "Turns: 0/400".toLabel()
+    private var turnsShown = true
     private data class ResourceActors(val resource: TileResource, val label: Label, val icon: Group)
     private val resourceActors = ArrayList<ResourceActors>(12)
     private val resourcesWrapper = Table()
@@ -76,6 +78,15 @@ internal class WorldScreenTopBarResources(topbar: WorldScreenTopBar) : ScalingTa
             resourcesWrapper.add(resourceActors[0].icon)
             add(resourcesWrapper)
         }
+    }
+
+    /** Controller layout: show only the resources, the top bar shows [turnsLabel] by itself */
+    fun setTurnsShown(shown: Boolean) {
+        if (shown == turnsShown) return
+        turnsShown = shown
+        clearTable()
+        if (shown) add(turnsLabel)
+        if (resourceActors.isNotEmpty()) add(resourcesWrapper)
     }
 
     fun update(civInfo: Civilization) {
