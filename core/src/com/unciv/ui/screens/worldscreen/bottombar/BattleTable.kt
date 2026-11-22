@@ -74,12 +74,12 @@ class BattleTable(val worldScreen: WorldScreen) : Table() {
         if (attackerUnitView != null) {
             val attacker = attackerUnitView.asCombatant()
             if (attackerUnitView.isNuclearWeapon()) {
-                val selectedTileView = worldScreen.mapHolder.selectedTile
+                val selectedTileView = getTargetTile()
                     ?: return hide() // no selected tile
                 if (selectedTileView == attackerUnitView.getTile()) return hide() // mayUseNuke would test this again, but not actually seeing the nuke-yourself table just by selecting the nuke is nicer
                 simulateNuke(attacker, selectedTileView)
             } else if (attackerUnitView.isPreparingAirSweep()) {
-                val selectedTileView = worldScreen.mapHolder.selectedTile
+                val selectedTileView = getTargetTile()
                     ?: return hide() // no selected tile
                 simulateAirsweep(attacker, selectedTileView)
             } else {
@@ -113,9 +113,12 @@ class BattleTable(val worldScreen: WorldScreen) : Table() {
             isVisible = false
         }
 
-        // Controller layout keeps the bottom strip free for the button prompt bar
-        val bottom = if (GamepadState.controllerMode) GamepadPromptBar.HEIGHT + 5f else 5f
-        setPosition(stage.width / 2 - width / 2, bottom)
+        if (GamepadState.controllerMode) {
+            // Controller layout: a card on top of the selected unit's card in the bottom-left corner
+            val unitCard = worldScreen.bottomUnitTable
+            val bottom = if (unitCard.isVisible) unitCard.y + unitCard.height + 5f else GamepadPromptBar.HEIGHT + 5f
+            setPosition(0f, bottom)
+        } else setPosition(stage.width / 2 - width / 2, 5f)
     }
 
     /** The selected unit, if it's eligible to attack (purely cosmetic checks - hide the battle table otherwise). */
@@ -128,9 +131,15 @@ class BattleTable(val worldScreen: WorldScreen) : Table() {
         return unit
     }
 
+    /** The tile to simulate an attack on: the last clicked tile, or with a controller the tile under the reticle */
+    @Readonly
+    private fun getTargetTile(): TileView? =
+        if (GamepadState.controllerMode) worldScreen.mapHolder.gamepadReticleTile ?: worldScreen.mapHolder.selectedTile
+        else worldScreen.mapHolder.selectedTile
+
     @Readonly
     private fun tryGetDefender(): CombatantView? {
-        val selectedTileView = worldScreen.mapHolder.selectedTile ?: return null // no selected tile
+        val selectedTileView = getTargetTile() ?: return null // no selected tile
         return tryGetDefenderAtTile(selectedTileView, false)
     }
 

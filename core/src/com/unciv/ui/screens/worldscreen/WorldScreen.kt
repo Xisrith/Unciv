@@ -28,6 +28,7 @@ import com.unciv.models.ruleset.unique.UniqueType
 import com.unciv.ui.components.input.KeyShortcutDispatcherVeto
 import com.unciv.ui.components.input.KeyboardBinding
 import com.unciv.ui.components.input.KeyboardPanningListener
+import com.unciv.ui.components.input.gamepad.GamepadPromptBar
 import com.unciv.ui.components.input.gamepad.GamepadState
 import com.unciv.ui.popups.AuthPopup
 import com.unciv.ui.popups.Popup
@@ -48,6 +49,7 @@ import com.unciv.ui.screens.savescreens.QuickSave
 import com.unciv.ui.screens.savescreens.SaveGameScreen
 import com.unciv.ui.screens.victoryscreen.VictoryScreen
 import com.unciv.ui.screens.worldscreen.bottombar.BattleTable
+import com.unciv.ui.screens.worldscreen.bottombar.GamepadUnitHoverCard
 import com.unciv.ui.screens.worldscreen.bottombar.TileInfoTable
 import com.unciv.ui.screens.worldscreen.chat.ChatButton
 import com.unciv.ui.screens.worldscreen.mainmenu.WorldScreenMusicPopup
@@ -174,6 +176,8 @@ class WorldScreen(
     /** Bottom left widget holding information about a selected unit or city */
     internal val bottomUnitTable = UnitTable(this)
     internal val battleTable = BattleTable(this)
+    /** Controller layout: units under the reticle, bottom-left (see [positionTileInfoTable]) */
+    private val gamepadUnitHoverCard = GamepadUnitHoverCard(this)
     private val zoomController = ZoomButtonPair(mapHolder)
     internal val minimapWrapper = MinimapHolder(mapHolder)
     internal val bottomTileInfoTable = TileInfoTable(this)
@@ -224,6 +228,7 @@ class WorldScreen(
         battleTable.width = stage.width / 3
         battleTable.x = stage.width / 3
         stage.addActor(battleTable)
+        stage.addActor(gamepadUnitHoverCard)
 
         val tileToCenterOn: HexCoord =
                 when {
@@ -361,6 +366,7 @@ class WorldScreen(
         techPolicyAndDiplomacy.isVisible = uiEnabled
         tutorialTaskTable.isVisible = uiEnabled
         bottomTileInfoTable.isVisible = uiEnabled
+        if (!uiEnabled) gamepadUnitHoverCard.isVisible = false
         // Controller layout: the unit action buttons stay hidden, X opens GamepadUnitActionsPopup instead
         unitActionsTable.isVisible = uiEnabled && !GamepadState.controllerMode
         notificationsScroll.isVisible = uiEnabled
@@ -378,22 +384,41 @@ class WorldScreen(
         if (GamepadState.controllerMode) mapHolder.gamepadReticleTile ?: mapHolder.selectedTile
         else mapHolder.selectedTile
 
-    /** Controller layout: tile info in the bottom left corner (beside the unit/city info if one is selected) */
+    /** Positions the tile info box and, in controller mode, the bottom-left unit cards.
+     *  Controller layout:
+     *  - Tile (terrain) info above the minimap, as on desktop
+     *  - Bottom-left, above the [GamepadPromptBar]: the selected unit/city card, or - with nothing
+     *    selected - the [GamepadUnitHoverCard] for the units under the reticle
+     *  - The battle preview sits on top of the selected unit's card ([BattleTable] places itself) */
     private fun positionTileInfoTable() {
         if (GamepadState.controllerMode) {
-            bottomTileInfoTable.x = if (bottomUnitTable.isVisible) bottomUnitTable.width + 5f else 0f
-            bottomTileInfoTable.y = 0f
+            val aboveBottomBar = GamepadPromptBar.HEIGHT + 5f
+            bottomTileInfoTable.setPosition(
+                stage.width - bottomTileInfoTable.width,
+                if (game.settings.showMinimap) minimapWrapper.height + 5f else aboveBottomBar
+            )
+            bottomUnitTable.setPosition(0f, aboveBottomBar)
+            gamepadUnitHoverCard.setPosition(0f, aboveBottomBar)
         } else {
+            bottomUnitTable.setPosition(0f, 0f)
             bottomTileInfoTable.x = stage.width - bottomTileInfoTable.width
             bottomTileInfoTable.y = if (game.settings.showMinimap) minimapWrapper.height + 5f else 0f
         }
+    }
+
+    /** Controller layout: hover card for the reticle tile's units, only while nothing is selected */
+    private fun updateGamepadUnitHoverCard() {
+        val show = GamepadState.controllerMode && uiEnabled && !bottomUnitTable.isVisible
+        gamepadUnitHoverCard.update(if (show) mapHolder.gamepadReticleTile else null, show)
     }
 
     /** Called by [WorldScreenGamepad] when the reticle moves onto another tile */
     internal fun updateGamepadTileInfo() {
         if (!uiEnabled) return
         bottomTileInfoTable.update(getGameViewConsideringForOfWar().civView, getTileInfoTile())
+        updateGamepadUnitHoverCard()
         positionTileInfoTable()
+        battleTable.update() // the battle preview follows the reticle with a controller
     }
 
     // endregion
@@ -458,6 +483,7 @@ class WorldScreen(
 
             minimapWrapper.update(getGameViewConsideringForOfWar().civView.getCiv())
             bottomTileInfoTable.update(getGameViewConsideringForOfWar().civView, getTileInfoTile())
+            updateGamepadUnitHoverCard()
             positionTileInfoTable()
 
             battleTable.update()
@@ -486,7 +512,7 @@ class WorldScreen(
 
         if (uiEnabled) {
             // UnitActionsTable measures geometry (its own y, techPolicyAndDiplomacy and fogOfWarButton), so call update this late
-            unitActionsTable.y = bottomUnitTable.height
+            unitActionsTable.y = bottomUnitTable.y + bottomUnitTable.height
             unitActionsTable.update(bottomUnitTable.selectedUnit)
             // Controller layout: hidden but still updated - GamepadUnitActionsPopup activates its actions
             unitActionsTable.isVisible = !GamepadState.controllerMode
@@ -525,9 +551,7 @@ class WorldScreen(
         if (uiEnabled) tutorialTaskTable.update()
 
         val coveredNotificationsTop = stage.height - statusButtons.y
-        val coveredNotificationsBottom = if (GamepadState.controllerMode)  // tile info lives bottom-left then
-            (if (game.settings.showMinimap) minimapWrapper.height else 0f)
-            else (bottomTileInfoTable.height + bottomTileInfoTable.y)
+        val coveredNotificationsBottom = (bottomTileInfoTable.height + bottomTileInfoTable.y)
 //                (if (game.settings.showMinimap) minimapWrapper.height else 0f)
         notificationsScroll.update(viewingCiv.notifications, coveredNotificationsTop, coveredNotificationsBottom)
 

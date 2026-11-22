@@ -73,11 +73,16 @@ open class BasicTileInfo(
 
     open fun shouldBeVisible(tileView: TileView) = true
 
+    /** Leave unit lines out of the description (spying, or shown elsewhere) */
+    protected open val hideUnits: Boolean get() = isSpying
+    /** Leave an improvement under construction out of the description (shown elsewhere) */
+    protected open val hideWorkInProgress: Boolean get() = false
+
     open fun Table.addAdditionalContent(tileView: TileView) {}
 
     private fun getDescription(tileView: TileView) =
         MarkupRenderer.render(
-            TileDescription.toMarkup(tileView, isSpying, cityView.takeIf { isSpying }),
+            TileDescription.toMarkup(tileView, hideUnits, cityView.takeIf { isSpying }, hideWorkInProgress),
             padding = 0f, iconDisplay = IconDisplay.None
         ) {
             parentScreen.openCivilopedia(it)
