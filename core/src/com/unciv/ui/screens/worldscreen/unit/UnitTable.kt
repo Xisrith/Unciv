@@ -1,5 +1,6 @@
 package com.unciv.ui.screens.worldscreen.unit
 
+import com.unciv.ui.components.input.gamepad.GamepadState
 import com.unciv.view.isPreparingAirSweep
 import com.badlogic.gdx.Gdx
 import com.badlogic.gdx.graphics.g2d.Batch
@@ -142,6 +143,28 @@ class UnitTable(val worldScreen: WorldScreen) : Table() {
 
 
     /** Sending no unit clears the selected units entirely */
+    /** Select and center the previous/next idle unit (idle-unit arrow buttons, gamepad L1/R1) */
+    fun cycleIdleUnit(previous: Boolean) {
+        val idleUnits = worldScreen.selectedGameView.civView.getUnits().filter { it.isIdle() }
+        if (idleUnits.isEmpty()) return
+
+        val selectedUnit = selectedUnit
+        val unitToSelect: MapUnitView
+        if (selectedUnit == null || !idleUnits.contains(selectedUnit))
+            unitToSelect = idleUnits.first()
+        else {
+            var index = idleUnits.indexOf(selectedUnit)
+            if (previous) index-- else index++
+            index += idleUnits.size
+            index %= idleUnits.size // for looping
+            unitToSelect = idleUnits[index]
+        }
+
+        worldScreen.mapHolder.setCenterPosition(unitToSelect.getTile().position())
+        selectUnit(unitToSelect)
+        worldScreen.shouldUpdate = true
+    }
+
     fun selectUnit(unitView: MapUnitView? = null, append: Boolean = false) {
         presenter = if (unitView != null) unitPresenter else summaryPresenter
         unitPresenter.selectUnit(unitView, append)
@@ -171,7 +194,9 @@ class UnitTable(val worldScreen: WorldScreen) : Table() {
 
         // With no units of our own (e.g. spectators, or a civ that lost all units), the summary
         // (idle/skipping units) is meaningless - hide the whole table instead of showing an empty round artifact.
-        isVisible = presenter != summaryPresenter || worldScreen.selectedGameView.civView.getUnits().isNotEmpty()
+        isVisible = presenter != summaryPresenter ||
+            // Controller layout: the idle-unit summary bubble is replaced by L1/R1 unit cycling
+            !GamepadState.controllerMode && worldScreen.selectedGameView.civView.getUnits().isNotEmpty()
 
         // more efficient to do this check once for both
         if (worldScreen.selectedGameView.civView.getUnits().any { it.isIdle() }) {

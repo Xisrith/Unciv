@@ -4,6 +4,7 @@ import com.badlogic.gdx.scenes.scene2d.Group
 import com.badlogic.gdx.scenes.scene2d.Touchable
 import com.unciv.view.CivView
 import com.unciv.ui.components.tilegroups.citybutton.CityButton
+import com.unciv.ui.components.input.activate
 import com.unciv.ui.components.tilegroups.TileGroup
 import com.unciv.ui.components.tilegroups.WorldTileGroup
 import com.unciv.utils.DebugUtils
@@ -26,6 +27,9 @@ class TileLayerCityButton(tileGroup: TileGroup, size: Float) : TileLayer(tileGro
 
     /** Returns true when a CityButton is currently displayed on this tile. */
     fun hasButton(): Boolean = cityButton != null
+
+    /** Acts as if the city button was tapped (gamepad support). @return `true` if there was a button */
+    fun activateButton(): Boolean = cityButton?.activate() ?: false
 
     /** Enables or disables scene-graph transform on the city button wrapper (for scaling). */
     fun setButtonTransform(isTransform: Boolean) {

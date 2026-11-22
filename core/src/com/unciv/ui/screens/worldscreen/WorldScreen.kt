@@ -28,6 +28,7 @@ import com.unciv.models.ruleset.unique.UniqueType
 import com.unciv.ui.components.input.KeyShortcutDispatcherVeto
 import com.unciv.ui.components.input.KeyboardBinding
 import com.unciv.ui.components.input.KeyboardPanningListener
+import com.unciv.ui.components.input.gamepad.GamepadState
 import com.unciv.ui.popups.AuthPopup
 import com.unciv.ui.popups.Popup
 import com.unciv.ui.popups.ToastPopup
@@ -367,6 +368,35 @@ class WorldScreen(
         if (uiEnabled) battleTable.update() else battleTable.isVisible = false
     }
 
+    // region Gamepad
+
+    override fun createGamepadHandler() = WorldScreenGamepad(this)
+
+    /** The tile shown in the tile info box: the reticle tile with a controller, else the last clicked tile */
+    private fun getTileInfoTile() =
+        if (GamepadState.controllerMode) mapHolder.gamepadReticleTile ?: mapHolder.selectedTile
+        else mapHolder.selectedTile
+
+    /** Controller layout: tile info in the bottom left corner (beside the unit/city info if one is selected) */
+    private fun positionTileInfoTable() {
+        if (GamepadState.controllerMode) {
+            bottomTileInfoTable.x = if (bottomUnitTable.isVisible) bottomUnitTable.width + 5f else 0f
+            bottomTileInfoTable.y = 0f
+        } else {
+            bottomTileInfoTable.x = stage.width - bottomTileInfoTable.width
+            bottomTileInfoTable.y = if (game.settings.showMinimap) minimapWrapper.height + 5f else 0f
+        }
+    }
+
+    /** Called by [WorldScreenGamepad] when the reticle moves onto another tile */
+    internal fun updateGamepadTileInfo() {
+        if (!uiEnabled) return
+        bottomTileInfoTable.update(getGameViewConsideringForOfWar().civView, getTileInfoTile())
+        positionTileInfoTable()
+    }
+
+    // endregion
+
     private fun addKeyboardListener() {
         stage.addListener(KeyboardPanningListener(mapHolder, allowWASD = true))
     }
@@ -426,9 +456,8 @@ class WorldScreen(
             bottomUnitTable.update()
 
             minimapWrapper.update(getGameViewConsideringForOfWar().civView.getCiv())
-            bottomTileInfoTable.update(getGameViewConsideringForOfWar().civView, mapHolder.selectedTile)
-            bottomTileInfoTable.x = stage.width - bottomTileInfoTable.width
-            bottomTileInfoTable.y = if (game.settings.showMinimap) minimapWrapper.height + 5f else 0f
+            bottomTileInfoTable.update(getGameViewConsideringForOfWar().civView, getTileInfoTile())
+            positionTileInfoTable()
 
             battleTable.update()
         }
@@ -493,7 +522,9 @@ class WorldScreen(
         if (uiEnabled) tutorialTaskTable.update()
 
         val coveredNotificationsTop = stage.height - statusButtons.y
-        val coveredNotificationsBottom = (bottomTileInfoTable.height + bottomTileInfoTable.y)
+        val coveredNotificationsBottom = if (GamepadState.controllerMode)  // tile info lives bottom-left then
+            (if (game.settings.showMinimap) minimapWrapper.height else 0f)
+            else (bottomTileInfoTable.height + bottomTileInfoTable.y)
 //                (if (game.settings.showMinimap) minimapWrapper.height else 0f)
         notificationsScroll.update(viewingCiv.notifications, coveredNotificationsTop, coveredNotificationsBottom)
 

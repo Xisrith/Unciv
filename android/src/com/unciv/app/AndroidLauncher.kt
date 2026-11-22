@@ -3,17 +3,23 @@ package com.unciv.app
 import android.content.Intent
 import android.media.MediaScannerConnection
 import android.os.Bundle
+import android.view.InputDevice
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.work.WorkManager
+import com.badlogic.gdx.Gdx
 import com.badlogic.gdx.backends.android.AndroidApplication
+import com.badlogic.gdx.backends.android.AndroidGraphics
 import com.badlogic.gdx.backends.android.AndroidApplicationConfiguration
 import com.unciv.logic.IdChecker
 import com.unciv.logic.files.SAVE_FILES_FOLDER
 import com.unciv.logic.files.UncivFiles
 import com.unciv.ui.components.fonts.Fonts
+import com.unciv.ui.components.input.gamepad.GamepadState
 import com.unciv.ui.screens.multiplayerscreens.AddFriendScreen
 import com.unciv.utils.Concurrency.runOnGLThread
 import com.unciv.utils.Dispatcher
@@ -76,7 +82,71 @@ open class AndroidLauncher : AndroidApplication() {
         game!!.setDeepLinkedGame(intent)
         game!!.addScreenObscuredListener()
         processPossibleFriendDeepLink(intent)
+
+        GamepadState.controllerMode = hasGamepad()
     }
+
+    // region Gamepad
+
+    private fun hasGamepad(): Boolean = InputDevice.getDeviceIds().any { id ->
+        val sources = InputDevice.getDevice(id)?.sources ?: 0
+        (sources and InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD ||
+            (sources and InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK
+    }
+
+    /** Gamepad buttons are delivered to libGDX as normal key events. We always report them as handled
+     *  so Android doesn't additionally generate its "fallback" keys (B -> Back, A -> DPAD_CENTER, ...). */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val handled = super.dispatchKeyEvent(event)
+        if (KeyEvent.isGamepadButton(event.keyCode)) {
+            GamepadState.controllerMode = true
+            return true
+        }
+        return handled
+    }
+
+    private var lastHatX = 0
+    private var lastHatY = 0
+
+    /** Analog sticks and triggers: libGDX core ignores them, so we store them in [GamepadState] and
+     *  consume the event - that also stops Android from synthesizing coarse D-pad presses from the stick. */
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        val isJoystick = (event.source and InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK
+        if (!isJoystick || event.action != MotionEvent.ACTION_MOVE)
+            return super.dispatchGenericMotionEvent(event)
+
+        GamepadState.controllerMode = true
+        GamepadState.leftX = event.getAxisValue(MotionEvent.AXIS_X)
+        GamepadState.leftY = event.getAxisValue(MotionEvent.AXIS_Y)
+        GamepadState.rightX = event.getAxisValue(MotionEvent.AXIS_Z)
+        GamepadState.rightY = event.getAxisValue(MotionEvent.AXIS_RZ)
+        GamepadState.leftTrigger = maxOf(event.getAxisValue(MotionEvent.AXIS_LTRIGGER), event.getAxisValue(MotionEvent.AXIS_BRAKE))
+        GamepadState.rightTrigger = maxOf(event.getAxisValue(MotionEvent.AXIS_RTRIGGER), event.getAxisValue(MotionEvent.AXIS_GAS))
+
+        // Some controllers report the D-pad as a "hat" axis instead of key events - translate it to D-pad keys
+        val hatX = Math.round(event.getAxisValue(MotionEvent.AXIS_HAT_X))
+        val hatY = Math.round(event.getAxisValue(MotionEvent.AXIS_HAT_Y))
+        if (hatX != lastHatX) {
+            if (lastHatX != 0) sendKey(KeyEvent.ACTION_UP, if (lastHatX < 0) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT)
+            if (hatX != 0) sendKey(KeyEvent.ACTION_DOWN, if (hatX < 0) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT)
+            lastHatX = hatX
+        }
+        if (hatY != lastHatY) {
+            if (lastHatY != 0) sendKey(KeyEvent.ACTION_UP, if (lastHatY < 0) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_DOWN)
+            if (hatY != 0) sendKey(KeyEvent.ACTION_DOWN, if (hatY < 0) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_DOWN)
+            lastHatY = hatY
+        }
+
+        Gdx.graphics?.requestRendering()
+        return true
+    }
+
+    private fun sendKey(action: Int, keyCode: Int) {
+        val view = (Gdx.graphics as? AndroidGraphics)?.view ?: return
+        (Gdx.input as? View.OnKeyListener)?.onKey(view, keyCode, KeyEvent(action, keyCode))
+    }
+
+    // endregion
 
     private fun insetsListener(view: View, insets: WindowInsetsCompat): WindowInsetsCompat {
         val settings = try {

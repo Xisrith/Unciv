@@ -10,6 +10,8 @@ import com.unciv.UncivGame
 import com.unciv.logic.event.Event
 import com.unciv.logic.event.EventBus
 import com.unciv.ui.components.input.VirtualMouseButtonKeys
+import com.unciv.ui.components.input.gamepad.GamepadHandler
+import com.unciv.ui.components.input.gamepad.GamepadState
 import com.unciv.ui.crashhandling.wrapCrashHandling
 import com.unciv.ui.crashhandling.wrapCrashHandlingUnit
 import com.unciv.ui.screens.basescreen.BaseScreen.Companion.enableSceneDebug
@@ -51,6 +53,9 @@ class UncivStage(viewport: Viewport, batch: Batch = BaseScreen.batch) : Stage(vi
 
     private val events = EventBus.EventReceiver()
 
+    /** Supplies the owning screen's gamepad handler - a lambda so screens can create it lazily, after their own init */
+    var gamepadHandler: (() -> GamepadHandler?)? = null
+
     init {
         lastKnownVisibleArea = Rectangle(0f, 0f, width, height)
         events.receive(VisibleAreaChanged::class) {
@@ -89,6 +94,10 @@ class UncivStage(viewport: Viewport, batch: Batch = BaseScreen.batch) : Stage(vi
         /** We're replicating [Stage.act], so this value is simply taken from there */
         val delta = Gdx.graphics.deltaTime.coerceAtMost(1 / 30f)
 
+        gamepadHandler?.invoke()?.update(delta)
+        // Holding a stick produces no new input events, so keep frames coming while analog input is active
+        if (GamepadState.isAnalogActive()) Gdx.graphics.requestRendering()
+
         if (performPointerEnterExitEvents) {
             super.act(delta)
         } else {
@@ -120,10 +129,26 @@ class UncivStage(viewport: Viewport, batch: Batch = BaseScreen.batch) : Stage(vi
             { super.scrolled(amountX, amountY) }.wrapCrashHandling()() ?: true
 
     override fun keyDown(keyCode: Int) =
-            { super.keyDown(keyCode) }.wrapCrashHandling()() ?: true
+            { handleGamepadKey(keyCode, true) || super.keyDown(keyCode) }.wrapCrashHandling()() ?: true
 
     override fun keyUp(keyCode: Int) =
-            { super.keyUp(keyCode) }.wrapCrashHandling()() ?: true
+            { handleGamepadKey(keyCode, false) || super.keyUp(keyCode) }.wrapCrashHandling()() ?: true
+
+    private fun handleGamepadKey(keyCode: Int, down: Boolean): Boolean {
+        if (GamepadState.isGamepadKey(keyCode)) GamepadState.controllerMode = true
+        when (keyCode) {
+            com.badlogic.gdx.Input.Keys.BUTTON_L2 -> GamepadState.leftTriggerKeyDown = down
+            com.badlogic.gdx.Input.Keys.BUTTON_R2 -> GamepadState.rightTriggerKeyDown = down
+        }
+        val handler = gamepadHandler?.invoke() ?: return false
+        return if (down) handler.keyDown(keyCode) else handler.keyUp(keyCode)
+    }
+
+    /** Sends a key press+release through the normal keyboard handling, bypassing the gamepad handler */
+    fun injectKey(keyCode: Int) {
+        super.keyDown(keyCode)
+        super.keyUp(keyCode)
+    }
 
     override fun keyTyped(character: Char) =
             { super.keyTyped(character) }.wrapCrashHandling()() ?: true
