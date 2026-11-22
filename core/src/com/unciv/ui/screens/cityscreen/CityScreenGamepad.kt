@@ -8,7 +8,8 @@ import com.unciv.ui.popups.activePopup
 
 /**
  * Gamepad controls for the [CityScreen]:
- * - Two panels: production (left) and city stats / focus (right). L2 / R2 switch between them.
+ * - Two panels: production (left) and city stats / focus (right). L2 / R2 switch between them,
+ *   as do D-pad left / right when there is nothing further in that direction.
  * - D-pad + A navigate within the active panel, B leaves the city
  * - X: "more actions" - on a queue entry: move up / down, remove; elsewhere: rename, raze / annex
  * - L1 / R1: previous / next city
@@ -33,6 +34,15 @@ class CityScreenGamepad(private val cityScreen: CityScreen) : GamepadMenuHandler
             }
         }
         return super.keyDown(keyCode)
+    }
+
+    /** D-pad left/right at the edge of a panel jumps to the other panel */
+    override fun onNothingInDirection(dirX: Int): Boolean {
+        if (cityScreen.activePopup != null) return false
+        val toRight = dirX > 0
+        if (toRight == rightPanel) return false
+        switchPanel(toRight)
+        return true
     }
 
     private fun switchPanel(right: Boolean) {

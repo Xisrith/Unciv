@@ -42,10 +42,10 @@ open class GamepadMenuHandler(protected val screen: BaseScreen) : GamepadHandler
         if (isDpad && screen.stage.keyboardFocus is TextField) return false
         val root = navigationRoot() ?: return false
         return when (keyCode) {
-            Input.Keys.DPAD_UP -> navigator.move(root, 0, 1)
-            Input.Keys.DPAD_DOWN -> navigator.move(root, 0, -1)
-            Input.Keys.DPAD_LEFT -> navigator.adjust(-1) || navigator.move(root, -1, 0)
-            Input.Keys.DPAD_RIGHT -> navigator.adjust(1) || navigator.move(root, 1, 0)
+            Input.Keys.DPAD_UP -> { navigator.move(root, 0, 1); true }
+            Input.Keys.DPAD_DOWN -> { navigator.move(root, 0, -1); true }
+            Input.Keys.DPAD_LEFT -> { navigator.adjust(-1) || navigator.move(root, -1, 0) || onNothingInDirection(-1); true }
+            Input.Keys.DPAD_RIGHT -> { navigator.adjust(1) || navigator.move(root, 1, 0) || onNothingInDirection(1); true }
             Input.Keys.BUTTON_A -> {
                 navigator.ensureFocus(root)
                 navigator.activate()
@@ -59,6 +59,9 @@ open class GamepadMenuHandler(protected val screen: BaseScreen) : GamepadHandler
             else -> true // swallow other gamepad buttons so they can't trigger Android fallbacks
         }
     }
+
+    /** Hook for left/right presses with nothing further in that direction ([dirX] -1 / +1). @return `true` if handled */
+    protected open fun onNothingInDirection(dirX: Int): Boolean = false
 
     override fun keyUp(keyCode: Int): Boolean = GamepadState.isGamepadKey(keyCode)
 

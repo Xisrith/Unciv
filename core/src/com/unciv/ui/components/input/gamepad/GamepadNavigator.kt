@@ -127,7 +127,8 @@ class GamepadNavigator(
         setFocus(pick)
     }
 
-    /** Move focus in a direction. [dirX]: -1 left / +1 right, [dirY]: +1 up / -1 down (stage coordinates) */
+    /** Move focus in a direction. [dirX]: -1 left / +1 right, [dirY]: +1 up / -1 down (stage coordinates)
+     *  @return `true` if the focus moved (or was newly acquired), `false` if there is nothing in that direction */
     fun move(root: Group, dirX: Int, dirY: Int): Boolean {
         val current = focused
         if (!isStillValid(current, root)) {
@@ -151,7 +152,8 @@ class GamepadNavigator(
                 best = candidate
             }
         }
-        if (best != null) setFocus(best)
+        if (best == null) return false
+        setFocus(best)
         return true
     }
 
