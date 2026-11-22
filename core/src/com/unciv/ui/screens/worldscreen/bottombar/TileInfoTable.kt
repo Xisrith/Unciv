@@ -3,6 +3,7 @@ package com.unciv.ui.screens.worldscreen.bottombar
 import com.badlogic.gdx.graphics.g2d.Batch
 import com.badlogic.gdx.scenes.scene2d.ui.Table
 import com.unciv.ui.components.extensions.toLabel
+import com.unciv.ui.components.input.gamepad.GamepadState
 import com.unciv.ui.components.widgets.BasicTileInfo
 import com.unciv.ui.screens.worldscreen.WorldScreen
 import com.unciv.utils.DebugUtils
@@ -24,6 +25,9 @@ class TileInfoTable(
     // skinStrings.getUiBackground("WorldScreen/TileInfoTableBorder")
 
     override fun shouldBeVisible(tileView: TileView) = DebugUtils.VISIBLE_MAP || civView.hasExplored(tileView)
+
+    /** Controller layout: units on the hovered tile get their own card, see [GamepadUnitHoverCard] */
+    override val hideUnits get() = GamepadState.controllerMode
 
     override fun Table.addAdditionalContent(tileView: TileView) {
         if (DebugUtils.VISIBLE_MAP)
