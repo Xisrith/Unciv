@@ -35,6 +35,8 @@ import com.unciv.ui.components.input.KeyShortcutDispatcher
 import com.unciv.ui.components.input.KeyShortcutDispatcherVeto
 import com.unciv.ui.components.input.installShortcutDispatcher
 import com.unciv.ui.components.input.keyShortcuts
+import com.unciv.ui.components.input.gamepad.GamepadHandler
+import com.unciv.ui.components.input.gamepad.GamepadMenuHandler
 import com.unciv.ui.crashhandling.CrashScreen
 import com.unciv.ui.images.ImageGetter
 import com.unciv.ui.popups.Popup
@@ -76,6 +78,12 @@ abstract class BaseScreen : Screen {
         }
     }
 
+    /** Gamepad support - created on first use so derived screens are fully constructed by then */
+    private val gamepadHandler: GamepadHandler by lazy { createGamepadHandler() }
+
+    /** Override to give a screen its own gamepad controls. The default provides menu navigation. */
+    protected open fun createGamepadHandler(): GamepadHandler = GamepadMenuHandler(this)
+
     init {
         val height = game.settings.screenSize.getHeight()
 
@@ -87,6 +95,8 @@ abstract class BaseScreen : Screen {
 
         @Suppress("LeakingThis")
         stage.installShortcutDispatcher(globalShortcuts, this::createDispatcherVetoer)
+
+        (stage as UncivStage).gamepadHandler = { gamepadHandler }
 
         if (fpsLabelContainer != null) {
             fpsLabelContainer.pack()
