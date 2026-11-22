@@ -4,6 +4,7 @@ import com.badlogic.gdx.Input
 import com.badlogic.gdx.graphics.Color
 import com.badlogic.gdx.scenes.scene2d.Group
 import com.badlogic.gdx.scenes.scene2d.Touchable
+import com.unciv.ui.components.input.activate
 import com.unciv.ui.components.input.gamepad.GamepadMenuHandler
 import com.unciv.ui.components.input.gamepad.GamepadState
 import com.unciv.ui.images.ImageGetter
@@ -28,15 +29,13 @@ import com.unciv.view.isCivilian
  * - With a unit selected, the route to the reticle tile is previewed (numbers = end of each turn)
  * - L2 / R2: zoom out / in
  * - Start: game menu, Select: Empire overview
- * - Y: "HUD mode" - move a highlight over the on-screen buttons (unit actions, next turn, tech, ...), B or Y to leave
+ * - Y: the "do next thing" button (next unit / pick tech / next turn ...)
+ * - Other on-screen buttons stay touch-only for now
  *
- * With a popup open (or in HUD mode) the normal menu navigation of [GamepadMenuHandler] applies.
+ * With a popup open the normal menu navigation of [GamepadMenuHandler] applies.
  */
 class WorldScreenGamepad(private val worldScreen: WorldScreen) : GamepadMenuHandler(worldScreen) {
     private val mapHolder get() = worldScreen.mapHolder
-
-    /** Navigating the on-screen buttons instead of the map */
-    private var hudMode = false
 
     private val pathPreview by lazy { GamepadPathPreview(mapHolder) }
 
@@ -49,9 +48,9 @@ class WorldScreenGamepad(private val worldScreen: WorldScreen) : GamepadMenuHand
         isVisible = false
     }
 
-    override fun navigationRoot(): Group? = worldScreen.activePopup ?: if (hudMode) worldScreen.stage.root else null
+    override fun navigationRoot(): Group? = worldScreen.activePopup
 
-    private fun isMapMode() = !hudMode && worldScreen.activePopup == null
+    private fun isMapMode() = worldScreen.activePopup == null
 
     override fun keyDown(keyCode: Int): Boolean {
         val isDpad = GamepadState.isDpadKey(keyCode)
@@ -59,18 +58,7 @@ class WorldScreenGamepad(private val worldScreen: WorldScreen) : GamepadMenuHand
 
         if (!isMapMode()) {
             val popup = worldScreen.activePopup
-            if (popup == null) { // HUD mode
-                if (keyCode == Input.Keys.BUTTON_B || keyCode == Input.Keys.BUTTON_Y) {
-                    leaveHudMode()
-                    return true
-                }
-                if (keyCode == Input.Keys.BUTTON_A) {
-                    // Most HUD buttons change the selection or open a screen - go back to the map afterwards
-                    super.keyDown(keyCode)
-                    leaveHudMode()
-                    return true
-                }
-            } else if (keyCode == Input.Keys.BUTTON_START && popup is WorldScreenMenuPopup) {
+            if (keyCode == Input.Keys.BUTTON_START && popup is WorldScreenMenuPopup) {
                 popup.close()
                 return true
             }
@@ -87,11 +75,7 @@ class WorldScreenGamepad(private val worldScreen: WorldScreen) : GamepadMenuHand
             Input.Keys.BUTTON_X -> worldScreen.bottomUnitTable.selectedUnit?.let {
                 if (worldScreen.canChangeState) GamepadUnitActionsPopup(worldScreen, it)
             }
-            Input.Keys.BUTTON_Y -> {
-                hudMode = true
-                navigator.clear()
-                navigator.ensureFocus(worldScreen.stage.root)
-            }
+            Input.Keys.BUTTON_Y -> worldScreen.nextTurnButton.activate() // disabled while waiting / not our turn
             Input.Keys.BUTTON_L1 -> cycleSelection(previous = true)
             Input.Keys.BUTTON_R1 -> cycleSelection(previous = false)
             Input.Keys.BUTTON_START -> WorldScreenMenuPopup(worldScreen)
@@ -159,11 +143,6 @@ class WorldScreenGamepad(private val worldScreen: WorldScreen) : GamepadMenuHand
         if (mapHolder.unitActionOverlays.isNotEmpty()) mapHolder.removeUnitActionOverlay()
         if (unitTable.selectedUnit != null || unitTable.selectedCity != null || unitTable.selectedSpy != null)
             injectBack() // WorldScreen's Escape handler deselects
-    }
-
-    private fun leaveHudMode() {
-        hudMode = false
-        navigator.clear()
     }
 
     override fun update(delta: Float) {
