@@ -28,6 +28,7 @@ import com.unciv.models.ruleset.unique.UniqueType
 import com.unciv.ui.components.input.KeyShortcutDispatcherVeto
 import com.unciv.ui.components.input.KeyboardBinding
 import com.unciv.ui.components.input.KeyboardPanningListener
+import com.unciv.ui.components.input.gamepad.GamepadPromptBar
 import com.unciv.ui.components.input.gamepad.GamepadState
 import com.unciv.ui.popups.AuthPopup
 import com.unciv.ui.popups.Popup
@@ -378,12 +379,15 @@ class WorldScreen(
         if (GamepadState.controllerMode) mapHolder.gamepadReticleTile ?: mapHolder.selectedTile
         else mapHolder.selectedTile
 
-    /** Controller layout: tile info in the bottom left corner (beside the unit/city info if one is selected) */
+    /** Positions the tile info box, and the unit/city info box which depends on it in controller mode.
+     *  Controller layout: a stack in the bottom left corner, above the [GamepadPromptBar] - tile info
+     *  at the bottom, the unit/city info (if one is selected) directly on top of it. */
     private fun positionTileInfoTable() {
         if (GamepadState.controllerMode) {
-            bottomTileInfoTable.x = if (bottomUnitTable.isVisible) bottomUnitTable.width + 5f else 0f
-            bottomTileInfoTable.y = 0f
+            bottomTileInfoTable.setPosition(0f, GamepadPromptBar.HEIGHT + 5f)
+            bottomUnitTable.setPosition(0f, bottomTileInfoTable.y + bottomTileInfoTable.height + 5f)
         } else {
+            bottomUnitTable.setPosition(0f, 0f)
             bottomTileInfoTable.x = stage.width - bottomTileInfoTable.width
             bottomTileInfoTable.y = if (game.settings.showMinimap) minimapWrapper.height + 5f else 0f
         }
@@ -486,7 +490,7 @@ class WorldScreen(
 
         if (uiEnabled) {
             // UnitActionsTable measures geometry (its own y, techPolicyAndDiplomacy and fogOfWarButton), so call update this late
-            unitActionsTable.y = bottomUnitTable.height
+            unitActionsTable.y = bottomUnitTable.y + bottomUnitTable.height
             unitActionsTable.update(bottomUnitTable.selectedUnit)
             // Controller layout: hidden but still updated - GamepadUnitActionsPopup activates its actions
             unitActionsTable.isVisible = !GamepadState.controllerMode
