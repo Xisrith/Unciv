@@ -3,6 +3,7 @@ package com.unciv.ui.screens.cityscreen
 import com.badlogic.gdx.Input
 import com.badlogic.gdx.scenes.scene2d.Group
 import com.unciv.ui.components.input.gamepad.GamepadMenuHandler
+import com.unciv.ui.components.input.gamepad.GamepadPrompt
 import com.unciv.ui.components.input.gamepad.GamepadState
 import com.unciv.ui.popups.activePopup
 
@@ -24,6 +25,7 @@ class CityScreenGamepad(private val cityScreen: CityScreen) : GamepadMenuHandler
 
     override fun keyDown(keyCode: Int): Boolean {
         if (!GamepadState.isGamepadKey(keyCode) && !GamepadState.isDpadKey(keyCode)) return false
+        refreshPrompts()
         if (cityScreen.activePopup == null) {
             when (keyCode) {
                 Input.Keys.BUTTON_B -> { cityScreen.exit(); return true }
@@ -35,6 +37,16 @@ class CityScreenGamepad(private val cityScreen: CityScreen) : GamepadMenuHandler
             }
         }
         return super.keyDown(keyCode)
+    }
+
+    override fun prompts(): List<GamepadPrompt> {
+        if (cityScreen.activePopup != null) return super.prompts()
+        val result = arrayListOf(GamepadPrompt(GamepadPrompt.A, "Select"))
+        result += GamepadPrompt(GamepadPrompt.X, "More")
+        result += GamepadPrompt(GamepadPrompt.TRIGGERS, if (rightPanel) "Production" else "City info")
+        if (cityScreen.viewableCities.size > 1) result += GamepadPrompt(GamepadPrompt.BUMPERS, "Cities")
+        result += GamepadPrompt(GamepadPrompt.B, "Exit city")
+        return result
     }
 
     /** D-pad left/right at the edge of a panel jumps to the other panel */
