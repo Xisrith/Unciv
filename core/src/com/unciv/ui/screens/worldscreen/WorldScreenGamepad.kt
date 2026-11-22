@@ -10,6 +10,7 @@ import com.unciv.ui.components.input.gamepad.GamepadState
 import com.unciv.ui.images.ImageGetter
 import com.unciv.ui.popups.activePopup
 import com.unciv.ui.screens.worldscreen.mainmenu.WorldScreenMenuPopup
+import com.unciv.ui.screens.worldscreen.unit.actions.GamepadUnitActionsPopup
 import com.unciv.ui.screens.worldscreen.worldmap.GamepadPathPreview
 import com.unciv.view.MapUnitView
 import com.unciv.view.isAirUnit
@@ -22,6 +23,7 @@ import com.unciv.view.isCivilian
  * - Left stick / D-pad: pan the map, the reticle in the screen center marks the "hovered" tile
  * - A: select the unit/city on the reticle tile, or move/attack there with the selected unit
  * - B: deselect
+ * - X: list of the selected unit's actions
  * - L1 / R1: previous / next of the same kind as the selection (cities, land military, civilians,
  *   naval, air units), or the previous / next idle unit when nothing is selected
  * - With a unit selected, the route to the reticle tile is previewed (numbers = end of each turn)
@@ -70,6 +72,9 @@ class WorldScreenGamepad(private val worldScreen: WorldScreen) : GamepadMenuHand
                 pathPreview.invalidate()
             }
             Input.Keys.BUTTON_B -> deselect()
+            Input.Keys.BUTTON_X -> worldScreen.bottomUnitTable.selectedUnit?.let {
+                if (worldScreen.canChangeState) GamepadUnitActionsPopup(worldScreen, it)
+            }
             Input.Keys.BUTTON_Y -> worldScreen.nextTurnButton.activate() // disabled while waiting / not our turn
             Input.Keys.BUTTON_L1 -> cycleSelection(previous = true)
             Input.Keys.BUTTON_R1 -> cycleSelection(previous = false)
