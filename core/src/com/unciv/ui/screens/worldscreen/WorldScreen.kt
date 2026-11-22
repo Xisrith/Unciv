@@ -361,7 +361,8 @@ class WorldScreen(
         techPolicyAndDiplomacy.isVisible = uiEnabled
         tutorialTaskTable.isVisible = uiEnabled
         bottomTileInfoTable.isVisible = uiEnabled
-        unitActionsTable.isVisible = uiEnabled
+        // Controller layout: the unit action buttons stay hidden, X opens GamepadUnitActionsPopup instead
+        unitActionsTable.isVisible = uiEnabled && !GamepadState.controllerMode
         notificationsScroll.isVisible = uiEnabled
         minimapWrapper.isVisible = uiEnabled
         bottomUnitTable.isVisible = uiEnabled
@@ -487,6 +488,8 @@ class WorldScreen(
             // UnitActionsTable measures geometry (its own y, techPolicyAndDiplomacy and fogOfWarButton), so call update this late
             unitActionsTable.y = bottomUnitTable.height
             unitActionsTable.update(bottomUnitTable.selectedUnit)
+            // Controller layout: hidden but still updated - GamepadUnitActionsPopup activates its actions
+            unitActionsTable.isVisible = !GamepadState.controllerMode
         }
 
         // If the game has ended, lets stop AutoPlay
