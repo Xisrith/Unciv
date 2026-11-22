@@ -17,8 +17,8 @@ import kotlinx.coroutines.Job
  * Gamepad path preview: while a unit is selected, shows the route to the tile under the reticle -
  * small dots along this turn's steps and numbered markers where each turn ends.
  *
- * Pathfinding runs on a worker thread and only once the reticle has rested on a tile briefly,
- * so sweeping the stick across the map stays smooth.
+ * Pathfinding runs on a worker thread as soon as the reticle enters a tile; results for tiles
+ * the reticle has already left are discarded.
  */
 internal class GamepadPathPreview(private val mapHolder: WorldMapHolder) {
     private val markers = ArrayList<Actor>()
@@ -26,8 +26,6 @@ internal class GamepadPathPreview(private val mapHolder: WorldMapHolder) {
     private var job: Job? = null
 
     private var shownKey: Triple<MapUnitView?, TileView?, TileView?>? = null
-    private var pendingKey: Triple<MapUnitView?, TileView?, TileView?>? = null
-    private var pendingTime = 0f
 
     private val stepColor = Color(0.53f, 0.81f, 0.98f, 0.9f)
     private val turnColor = Color(0.08f, 0.32f, 0.55f, 0.95f)
@@ -35,23 +33,15 @@ internal class GamepadPathPreview(private val mapHolder: WorldMapHolder) {
     /** Forget the current preview so it is recomputed (e.g. after the unit moved) */
     fun invalidate() {
         shownKey = null
-        pendingKey = null
         clear()
     }
 
+    @Suppress("UNUSED_PARAMETER")
     fun update(unit: MapUnitView?, target: TileView?, delta: Float) {
         val key = Triple(unit, unit?.getTile(), target)
         if (key == shownKey) return
-        if (key != pendingKey) {
-            pendingKey = key
-            pendingTime = 0f
-            clear()
-            return
-        }
-        pendingTime += delta
-        if (pendingTime < 0.12f) return
         shownKey = key
-        compute(unit, target)
+        compute(unit, target) // a newer request supersedes any still-running one via [generation]
     }
 
     private fun compute(unit: MapUnitView?, target: TileView?) {
