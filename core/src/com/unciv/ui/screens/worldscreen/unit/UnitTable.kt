@@ -141,6 +141,28 @@ class UnitTable(val worldScreen: WorldScreen) : Table() {
     }
 
 
+    /** Select and center the previous/next idle unit (idle-unit arrow buttons, gamepad L1/R1) */
+    fun cycleIdleUnit(previous: Boolean) {
+        val idleUnits = worldScreen.selectedGameView.civView.getUnits().filter { it.isIdle() }
+        if (idleUnits.isEmpty()) return
+
+        val selectedUnit = selectedUnit
+        val unitToSelect: MapUnitView
+        if (selectedUnit == null || !idleUnits.contains(selectedUnit))
+            unitToSelect = idleUnits.first()
+        else {
+            var index = idleUnits.indexOf(selectedUnit)
+            if (previous) index-- else index++
+            index += idleUnits.size
+            index %= idleUnits.size // for looping
+            unitToSelect = idleUnits[index]
+        }
+
+        worldScreen.mapHolder.setCenterPosition(unitToSelect.getTile().position())
+        selectUnit(unitToSelect)
+        worldScreen.shouldUpdate = true
+    }
+
     /** Sending no unit clears the selected units entirely */
     fun selectUnit(unitView: MapUnitView? = null, append: Boolean = false) {
         presenter = if (unitView != null) unitPresenter else summaryPresenter
