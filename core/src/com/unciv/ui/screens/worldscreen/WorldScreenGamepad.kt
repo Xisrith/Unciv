@@ -9,6 +9,11 @@ import com.unciv.ui.components.input.gamepad.GamepadState
 import com.unciv.ui.images.ImageGetter
 import com.unciv.ui.popups.activePopup
 import com.unciv.ui.screens.worldscreen.mainmenu.WorldScreenMenuPopup
+import com.unciv.ui.screens.worldscreen.unit.actions.GamepadUnitActionsPopup
+import com.unciv.ui.screens.worldscreen.worldmap.GamepadPathPreview
+import com.unciv.view.MapUnitView
+import com.unciv.view.isAirUnit
+import com.unciv.view.isCivilian
 
 /**
  * Gamepad controls for the [WorldScreen].
@@ -17,7 +22,10 @@ import com.unciv.ui.screens.worldscreen.mainmenu.WorldScreenMenuPopup
  * - Left stick / D-pad: pan the map, the reticle in the screen center marks the "hovered" tile
  * - A: select the unit/city on the reticle tile, or move/attack there with the selected unit
  * - B: deselect
- * - L1 / R1: previous / next idle unit
+ * - X: list of the selected unit's actions
+ * - L1 / R1: previous / next of the same kind as the selection (cities, land military, civilians,
+ *   naval, air units), or the previous / next idle unit when nothing is selected
+ * - With a unit selected, the route to the reticle tile is previewed (numbers = end of each turn)
  * - L2 / R2: zoom out / in
  * - Start: game menu, Select: Empire overview
  * - Y: "HUD mode" - move a highlight over the on-screen buttons (unit actions, next turn, tech, ...), B or Y to leave
@@ -29,6 +37,8 @@ class WorldScreenGamepad(private val worldScreen: WorldScreen) : GamepadMenuHand
 
     /** Navigating the on-screen buttons instead of the map */
     private var hudMode = false
+
+    private val pathPreview by lazy { GamepadPathPreview(mapHolder) }
 
     private val reticleDot = ImageGetter.getCircle(Color.WHITE, 10f).apply {
         touchable = Touchable.disabled
@@ -69,15 +79,21 @@ class WorldScreenGamepad(private val worldScreen: WorldScreen) : GamepadMenuHand
 
         // Map mode
         when (keyCode) {
-            Input.Keys.BUTTON_A -> mapHolder.gamepadReticleTile?.let { mapHolder.gamepadConfirm(it) }
+            Input.Keys.BUTTON_A -> mapHolder.gamepadReticleTile?.let {
+                mapHolder.gamepadConfirm(it)
+                pathPreview.invalidate()
+            }
             Input.Keys.BUTTON_B -> deselect()
+            Input.Keys.BUTTON_X -> worldScreen.bottomUnitTable.selectedUnit?.let {
+                if (worldScreen.canChangeState) GamepadUnitActionsPopup(worldScreen, it)
+            }
             Input.Keys.BUTTON_Y -> {
                 hudMode = true
                 navigator.clear()
                 navigator.ensureFocus(worldScreen.stage.root)
             }
-            Input.Keys.BUTTON_L1 -> worldScreen.bottomUnitTable.cycleIdleUnit(previous = true)
-            Input.Keys.BUTTON_R1 -> worldScreen.bottomUnitTable.cycleIdleUnit(previous = false)
+            Input.Keys.BUTTON_L1 -> cycleSelection(previous = true)
+            Input.Keys.BUTTON_R1 -> cycleSelection(previous = false)
             Input.Keys.BUTTON_START -> WorldScreenMenuPopup(worldScreen)
             Input.Keys.BUTTON_SELECT -> worldScreen.openEmpireOverview()
             // D-pad: let the regular arrow-key map panning handle it
@@ -85,6 +101,58 @@ class WorldScreenGamepad(private val worldScreen: WorldScreen) : GamepadMenuHand
         }
         return true
     }
+
+    // region Bumper cycling
+
+    private enum class CycleCategory { Cities, LandMilitary, Civilians, Naval, Air }
+
+    private fun categoryOf(unit: MapUnitView) = when {
+        unit.isAirUnit() -> CycleCategory.Air
+        unit.isCivilian() -> CycleCategory.Civilians
+        unit.getBaseUnit().isWaterUnit -> CycleCategory.Naval
+        else -> CycleCategory.LandMilitary
+    }
+
+    private fun nextIndex(current: Int, size: Int, previous: Boolean) =
+        if (current < 0) 0 else (current + (if (previous) -1 else 1) + size) % size
+
+    /** L1/R1: cycle through things of the same kind as the current selection, idle units when nothing is selected */
+    private fun cycleSelection(previous: Boolean) {
+        val unitTable = worldScreen.bottomUnitTable
+        val selectedUnit = unitTable.selectedUnit
+        when {
+            unitTable.selectedCity != null -> cycleCities(previous)
+            selectedUnit != null -> cycleUnits(categoryOf(selectedUnit), selectedUnit, previous)
+            else -> unitTable.cycleIdleUnit(previous)
+        }
+    }
+
+    private fun cycleUnits(category: CycleCategory, current: MapUnitView, previous: Boolean) {
+        val units = worldScreen.selectedGameView.civView.getUnits().filter { categoryOf(it) == category }
+        if (units.isEmpty()) return
+        val next = units[nextIndex(units.indexOf(current), units.size, previous)]
+        mapHolder.setCenterPosition(next.getTile().position(), selectUnit = false)
+        worldScreen.bottomUnitTable.selectUnit(next)
+        worldScreen.shouldUpdate = true
+    }
+
+    private fun cycleCities(previous: Boolean) {
+        val unitTable = worldScreen.bottomUnitTable
+        val cities = worldScreen.selectedGameView.civView.cities()
+        if (cities.isEmpty()) return
+        val currentTile = unitTable.selectedCity?.getCenterTile()
+        val currentIndex = cities.indexOfFirst { it.getCenterTile().position() == currentTile?.position() }
+        val next = cities[nextIndex(currentIndex, cities.size, previous)]
+        val nextTile = next.getCenterTile()
+        if (currentTile != null && currentTile.position() != nextTile.position())
+            mapHolder.tileGroups[currentTile]?.layerCityButton?.moveUp()
+        mapHolder.setCenterPosition(nextTile.position(), selectUnit = false)
+        unitTable.citySelected(next)
+        mapHolder.tileGroups[nextTile]?.layerCityButton?.moveDown()
+        worldScreen.shouldUpdate = true
+    }
+
+    // endregion
 
     private fun deselect() {
         val unitTable = worldScreen.bottomUnitTable
@@ -101,6 +169,10 @@ class WorldScreenGamepad(private val worldScreen: WorldScreen) : GamepadMenuHand
     override fun update(delta: Float) {
         super.update(delta)
         updateReticle()
+
+        val previewUnit = if (GamepadState.controllerMode && isMapMode()) worldScreen.bottomUnitTable.selectedUnit else null
+        pathPreview.update(previewUnit, mapHolder.gamepadReticleTile, delta)
+
         if (!isMapMode()) return
 
         // Analog panning, same speed as the arrow keys at full tilt

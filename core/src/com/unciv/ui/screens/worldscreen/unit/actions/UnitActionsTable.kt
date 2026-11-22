@@ -198,7 +198,7 @@ class UnitActionsTable(val worldScreen: WorldScreen) : Table() {
         return actionButton
     }
 
-    private fun activateAction(unitAction: UiUnitAction, unit: MapUnitView) {
+    internal fun activateAction(unitAction: UiUnitAction, unit: MapUnitView) {
         val confirmation = unitAction.confirmation
         if (confirmation == null) {
             invokeAction(unitAction, unit)
