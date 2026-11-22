@@ -8,6 +8,7 @@ import com.unciv.ui.components.extensions.darken
 import com.unciv.ui.components.extensions.toLabel
 import com.unciv.ui.components.fonts.Fonts
 import com.unciv.ui.components.widgets.UnitIconGroup
+import com.unciv.ui.images.ImageGetter
 import com.unciv.ui.screens.basescreen.BaseScreen
 import com.unciv.ui.screens.worldscreen.WorldScreen
 import com.unciv.view.ForeignMapUnitView
@@ -69,7 +70,24 @@ class GamepadUnitHoverCard(private val worldScreen: WorldScreen) : Table(BaseScr
         if (stats.isNotEmpty()) texts.add(stats.joinToString("  ").toLabel(fontSize = 14)).row()
 
         getStatus(unit)?.let { texts.add(it.toLabel(Color.GOLD, 14)).row() }
+        getWorkInProgress(unit)?.let { texts.add(it).row() }
         add(texts)
+    }
+
+    /** A civilian on a tile with an improvement under construction is the one building it:
+     *  `[farm icon] Farm - 2⏳` (the tile info leaves this out in controller mode) */
+    private fun getWorkInProgress(unit: ForeignMapUnitView): Table? {
+        if (unit.getBaseUnit().isMilitary) return null
+        val tile = unit.getTile()
+        val improvement = tile.improvementInProgress ?: return null
+        val turns = tile.turnsToImprovement
+        // Negative turnsToImprovement is used for UniqueType.CreatesOneImprovement
+        val text = improvement.tr() +
+            if (turns > 0) " - $turns${Fonts.turn}" else " " + "({Under construction})".tr()
+        return Table().apply {
+            add(ImageGetter.getImprovementPortrait(improvement, 18f)).padRight(5f)
+            add(text.toLabel(Color.GOLD, 14))
+        }
     }
 
     /** "What it's doing" - full detail for own units, only what's visible (fortified) for others */

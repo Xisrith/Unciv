@@ -18,9 +18,10 @@ import yairm210.purity.annotations.Readonly
 
 object TileDescription {
 
-    /** Get info on a selected tile, used on WorldScreen (right side above minimap), CityScreen or MapEditorViewTab. */
+    /** Get info on a selected tile, used on WorldScreen (right side above minimap), CityScreen or MapEditorViewTab.
+     *  @param hideWorkInProgress Leave out an improvement still being built (the controller layout shows it on the worker's card) */
     @Readonly
-    fun toMarkup(tileView: TileView, hideUnits: Boolean = false, spyCity: CityView? = null): ArrayList<FormattedLine> {
+    fun toMarkup(tileView: TileView, hideUnits: Boolean = false, spyCity: CityView? = null, hideWorkInProgress: Boolean = false): ArrayList<FormattedLine> {
         val lineList = ArrayList<FormattedLine>()
         val viewingCiv = tileView.getCivView()
         val isViewableToPlayer = viewingCiv == null || DebugUtils.VISIBLE_MAP
@@ -64,7 +65,7 @@ object TileDescription {
             lineList += FormattedLine("[$shownImprovement]$pillageText", link = "Improvement/$shownImprovement")
         }
 
-        if (tileView.improvementInProgress != null && isViewableToPlayer) {
+        if (tileView.improvementInProgress != null && isViewableToPlayer && !hideWorkInProgress) {
             // Negative turnsToImprovement is used for UniqueType.CreatesOneImprovement
             val line = "{${tileView.improvementInProgress}}" +
                     if (tileView.turnsToImprovement > 0) " - ${tileView.turnsToImprovement}${Fonts.turn}" else " ({Under construction})"

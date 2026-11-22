@@ -28,6 +28,8 @@ class TileInfoTable(
 
     /** Controller layout: units on the hovered tile get their own card, see [GamepadUnitHoverCard] */
     override val hideUnits get() = GamepadState.controllerMode
+    /** Controller layout: "Farm - 2 turns" is the worker's business - shown on its hover card; the tile shows the farm once built */
+    override val hideWorkInProgress get() = GamepadState.controllerMode
 
     override fun Table.addAdditionalContent(tileView: TileView) {
         if (DebugUtils.VISIBLE_MAP)
